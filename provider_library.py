@@ -80,7 +80,25 @@ def library_errors(library: Any) -> list[str]:
             if "market for electricity" in str(entry.get("name", "")).lower() or str(entry.get("name","")).lower().startswith("market group for electricity"):
                 errors.append(f"Approved provider {pid} looks like a downstream electricity market.")
     if approved_count == 0:
-        errors.append("No provider entries are marked approved; review the extraction CSV first.")
+        errors.append("No generation provider entries are marked approved; review the library first.")
+    markets = library.get("markets", [])
+    if markets is not None and not isinstance(markets, list):
+        errors.append("markets must be a list.")
+    elif isinstance(markets, list):
+        for i, market in enumerate(markets):
+            if not isinstance(market, dict):
+                errors.append(f"Market entry {i} is not an object.")
+                continue
+            if market.get("approved") is not True:
+                continue
+            if not _is_uuid(market.get("id")) or not market.get("name"):
+                errors.append(f"Approved market {i} has an invalid UUID/name.")
+            if market.get("kind") != "market":
+                errors.append(f"Approved market {i} is not classified as a market.")
+            if market.get("voltage") not in ("high", "medium", "low"):
+                errors.append(f"Approved market {i} lacks a valid voltage.")
+            if "market" not in str(market.get("name", "")).lower():
+                errors.append(f"Approved market {i} has no market activity name.")
     return errors
 
 
@@ -93,6 +111,15 @@ def approved_candidates(library: Mapping[str, Any], technology: str | None = Non
     if geography and geography != "All geographies":
         entries = [e for e in entries if e.get("location", "Not specified") == geography]
     return sorted(entries, key=lambda e: (e.get("location", ""), e.get("name", ""), e.get("id", "")))
+
+
+def approved_markets(library: Mapping[str, Any], voltage: str | None = None) -> list[dict]:
+    """Electricity markets are for baseline selection only, never generator shares."""
+    markets = [m for m in library.get("markets", [])
+               if isinstance(m, dict) and m.get("approved") is True]
+    if voltage:
+        markets = [m for m in markets if m.get("voltage") == voltage]
+    return sorted(markets, key=lambda m: (m.get("location", ""), m.get("name", "")))
 
 
 def catalog_for_selection(library: Mapping[str, Any], selected: Mapping[str, str]) -> dict:
