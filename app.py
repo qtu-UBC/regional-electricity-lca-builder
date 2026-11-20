@@ -7,6 +7,7 @@ import io
 import json
 import hashlib
 import zipfile
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -14,6 +15,62 @@ import streamlit as st
 from grid_core import (TECHNOLOGIES, parse_mix_csv, validate_scenario, regional_lifecycle_ci,
                        project_sensitivity, direct_factor_correction, dump_mix_csv, scenario_report)
 from openlca_jsonld import validate_catalog, package as make_openlca_package, package_preview
+
+# Built-in teaching examples: no licensed ecoinvent data or verified grid CI.
+PRESET_DEMO = "Demo — Hypothetical electricity mix"
+PRESET_NORTHWEST = "IESO Northwest — 2025 proposed generation mix"
+PRESET_CUSTOM = "Create my own scenario"
+PRESET_OPTIONS = (PRESET_DEMO, PRESET_NORTHWEST, PRESET_CUSTOM)
+NORTHWEST_MIX_FILE = Path(__file__).resolve().parent / "data" / "IESO_Northwest_2025_Generation_Scenario.csv"
+NORTHWEST_TUTORIAL_URL = (
+    "https://github.com/qtu-UBC/regional-electricity-lca-builder/"
+    "blob/main/tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md"
+)
+
+
+def preset_mix_rows(preset):
+    """Create fresh editable rows from the selected starting scenario."""
+    if preset == PRESET_NORTHWEST:
+        return parse_mix_csv(NORTHWEST_MIX_FILE.read_text(encoding="utf-8-sig"))
+    if preset == PRESET_DEMO:
+        return [
+            {"technology": "hydro", "share": 0.8, "ci_lifecycle_g_per_kwh": None,
+             "source_url": "", "notes": "HYPOTHETICAL demonstration value"},
+            {"technology": "nuclear", "share": 0.1, "ci_lifecycle_g_per_kwh": None,
+             "source_url": "", "notes": "HYPOTHETICAL demonstration value"},
+            {"technology": "natural_gas", "share": 0.1, "ci_lifecycle_g_per_kwh": None,
+             "source_url": "", "notes": "HYPOTHETICAL demonstration value"},
+        ]
+    return [{"technology": "hydro", "share": 0.0, "ci_lifecycle_g_per_kwh": None,
+             "source_url": "", "notes": "Replace with your own documented generation shares"}]
+
+
+def load_selected_preset():
+    """Reset the scenario's starting values when a preset is selected."""
+    preset = st.session_state.get("scenario_preset", PRESET_DEMO)
+    st.session_state.update({
+        "scenario_region": (
+            "IESO Northwest — 2025 client-proposed generation scenario"
+            if preset == PRESET_NORTHWEST else
+            "Demo — Hypothetical electricity mix" if preset == PRESET_DEMO else
+            "Custom electricity scenario"
+        ),
+        "scenario_year": 2025,
+        "scenario_boundary": "generation" if preset == PRESET_NORTHWEST else "hypothetical",
+        "scenario_evidence": "user_supplied_unverified" if preset == PRESET_NORTHWEST else "illustrative",
+        "scenario_voltage": "high",
+        "scenario_losses_pct": 0.0,
+        "scenario_source_url": "",
+        "scenario_background": "ecoinvent 3.12, allocation cut-off",
+        "starting_mix_rows": preset_mix_rows(preset),
+        "preset_reload_id": st.session_state.get("preset_reload_id", 0) + 1,
+    })
+
+
+if "starting_mix_rows" not in st.session_state:
+    st.session_state["scenario_preset"] = PRESET_DEMO
+    load_selected_preset()
+
 
 st.set_page_config(page_title="Regional Electricity LCA Builder", page_icon="⚡", layout="wide")
 st.title("⚡ Regional Electricity LCA Builder")
@@ -33,38 +90,58 @@ st.info(
 tab_build, tab_impact, tab_export, tab_openlca, tab_help = st.tabs(["1 · Build supply mix", "2 · GWP sensitivity", "3 · Scenario ZIP", "4 · openLCA import", "Guide & cautions"])
 
 with tab_build:
+    st.subheader("Start with an example or create your own")
+    st.selectbox(
+        "Start with a scenario",
+        PRESET_OPTIONS,
+        key="scenario_preset",
+        on_change=load_selected_preset,
+        help="Selecting a scenario loads its metadata and generation shares. You can edit any value afterward.",
+    )
+    if st.session_state["scenario_preset"] == PRESET_NORTHWEST:
+        st.warning(
+            "Client-proposed 2025 Northwest GENERATION mix (not independently verified). "
+            "It does not establish the electricity mix consumed at a facility or a regional life-cycle CI. "
+            "Imports, exports and interzonal transfers are not included."
+        )
+        st.markdown(f"[Open the worked student tutorial]({NORTHWEST_TUTORIAL_URL})")
+    elif st.session_state["scenario_preset"] == PRESET_CUSTOM:
+        st.info("Enter your own documented electricity shares. The new scenario starts at 0%; the shares must total 100% before export.")
+    else:
+        st.caption("The demonstration shares are hypothetical and are not measurements from any particular region.")
+
     st.subheader("Scenario metadata")
     c1,c2,c3 = st.columns(3)
     with c1:
-        region = st.text_input("Region / scenario label", value="DEMO — NOT IESO NORTHWEST")
-        year = st.number_input("Reference year", 1990, 2100, 2025, step=1)
+        region = st.text_input("Region / scenario label", key="scenario_region")
+        year = st.number_input("Reference year", 1990, 2100, step=1, key="scenario_year")
     with c2:
-        boundary = st.selectbox("What do the shares represent?", ["hypothetical", "consumption", "generation"], help="Local generation is not necessarily the mix consumed by facilities.")
-        evidence_status = st.selectbox("Evidence / review status", ["illustrative", "user_supplied_unverified", "verified"], help="Verified means an instructor checked the provenance, geographic scope, balance and year.")
+        boundary = st.selectbox("What do the shares represent?", ["hypothetical", "consumption", "generation"], key="scenario_boundary", help="Local generation is not necessarily the mix consumed by facilities.")
+        evidence_status = st.selectbox("Evidence / review status", ["illustrative", "user_supplied_unverified", "verified"], key="scenario_evidence", help="Verified means an instructor checked the provenance, geographic scope, balance and year.")
     with c3:
-        voltage = st.selectbox("Electricity delivery level", ["high", "medium", "low"])
-        losses_pct = st.number_input("Losses to delivered kWh (%) — screening scaling", min_value=0.0, max_value=34.9, value=0.0, step=0.5)
-    source_url = st.text_input("Primary public data source URL (required for documented scenarios)", value="")
-    ecoinvent_version = st.text_input("Background LCI identifier", value="ecoinvent 3.12, allocation cut-off")
+        voltage = st.selectbox("Electricity delivery level", ["high", "medium", "low"], key="scenario_voltage")
+        losses_pct = st.number_input("Losses to delivered kWh (%) — screening scaling", min_value=0.0, max_value=34.9, step=0.5, key="scenario_losses_pct")
+    source_url = st.text_input("Primary public data source URL (required for documented scenarios)", key="scenario_source_url")
+    ecoinvent_version = st.text_input("Background LCI identifier (optional for GWP screening)", key="scenario_background")
 
     st.subheader("Generation / supply shares")
-    uploaded = st.file_uploader("Optional: upload a mix CSV (technology, share, optional CI, source URL)", type=["csv"], key="mixup")
+    reload_id = st.session_state["preset_reload_id"]
+    uploaded = st.file_uploader(
+        "Optional: upload a mix CSV (technology, share, optional CI, source URL)",
+        type=["csv"], key=f"mixup_{reload_id}"
+    )
     if uploaded is not None:
         raw = uploaded.getvalue().decode("utf-8-sig")
         try:
             mix = parse_mix_csv(raw)
-            editor_key = "mix_" + hashlib.sha256(raw.encode()).hexdigest()[:8]
+            editor_key = f"mix_{reload_id}_" + hashlib.sha256(raw.encode()).hexdigest()[:8]
         except Exception as e:
             st.error(f"CSV error: {e}")
             mix = []
-            editor_key = "invalid_csv"
+            editor_key = f"invalid_csv_{reload_id}"
     else:
-        mix = [
-          {"technology":"hydro", "share":0.8, "ci_lifecycle_g_per_kwh":None, "source_url":"", "notes":"HYPOTHETICAL — NOT NORTHWEST"},
-          {"technology":"nuclear", "share":0.1, "ci_lifecycle_g_per_kwh":None, "source_url":"", "notes":"HYPOTHETICAL"},
-          {"technology":"natural_gas", "share":0.1, "ci_lifecycle_g_per_kwh":None, "source_url":"", "notes":"HYPOTHETICAL"},
-        ]
-        editor_key = "mix_demo"
+        mix = st.session_state["starting_mix_rows"]
+        editor_key = f"mix_preset_{reload_id}"
     if mix:
         df = pd.DataFrame(mix)
         edited = st.data_editor(df, num_rows="dynamic", use_container_width=True, key=editor_key,
@@ -209,6 +286,10 @@ with tab_openlca:
         st.warning("Create a scenario in Tab 1 first.")
 
 with tab_help:
+    st.markdown(
+        f"**Worked example:** [IESO Northwest 2025 student tutorial]({NORTHWEST_TUTORIAL_URL}). "
+        "The client-proposed shares are generation-based and unverified."
+    )
     st.markdown("""### Student workflow
 1. Select the grid boundary, year and voltage; upload verifiable supply mix shares (or edit the demonstration).
 2. Check that the shares describe electricity **consumed** by the facility; if only local generation is available, clearly state the limitation.
