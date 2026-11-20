@@ -15,6 +15,7 @@ import streamlit as st
 from grid_core import (TECHNOLOGIES, parse_mix_csv, validate_scenario, regional_lifecycle_ci,
                        project_sensitivity, direct_factor_correction, dump_mix_csv, scenario_report)
 from openlca_jsonld import validate_catalog, package as make_openlca_package, package_preview
+from provider_library import library_errors, approved_candidates, catalog_for_selection
 
 # Built-in teaching examples: no licensed ecoinvent data or verified grid CI.
 PRESET_DEMO = "Demo — Hypothetical electricity mix"
@@ -87,7 +88,7 @@ st.info(
     "background LCI datasets."
 )
 
-tab_build, tab_impact, tab_export, tab_openlca, tab_help = st.tabs(["1 · Build supply mix", "2 · GWP sensitivity", "3 · Scenario ZIP", "4 · openLCA import", "Guide & cautions"])
+tab_build, tab_library, tab_openlca, tab_impact, tab_export, tab_help = st.tabs(["1 · Build supply mix", "2 · Select providers", "3 · Export to openLCA", "4 · GWP screening (optional)", "5 · Scenario ZIP", "Guide & cautions"])
 
 with tab_build:
     st.subheader("Start with an example or create your own")
@@ -178,6 +179,101 @@ with tab_build:
     st.session_state["scenario_errors"] = errors
     st.session_state["scenario_warnings"] = warnings
 
+with tab_library:
+    st.subheader("Find electricity generation providers in your shared .zolca")
+    st.caption(
+        "Use an instructor-reviewed provider library extracted from the exact ecoinvent 3.12 "
+        "cut-off .zolca distributed to the class. This library has names and UUIDs only; "
+        "it contains no inventory exchanges or carbon intensity values."
+    )
+    provider_library = None
+    try:
+        library_secret = st.secrets.get("provider_library_json")
+    except (FileNotFoundError, KeyError, AttributeError):
+        library_secret = None
+    if library_secret:
+        try:
+            provider_library = json.loads(library_secret) if isinstance(library_secret, str) else dict(library_secret)
+            st.success("Instructor provider library loaded from deployment settings.")
+        except (TypeError, ValueError) as exc:
+            st.error(f"Provider library secret could not be decoded: {exc}")
+    if provider_library is None:
+        library_upload = st.file_uploader(
+            "Upload an instructor-approved provider library (JSON)", type=["json"], key="library_upload"
+        )
+        if library_upload is not None:
+            try:
+                provider_library = json.loads(library_upload.getvalue().decode("utf-8-sig"))
+            except (UnicodeDecodeError, ValueError) as exc:
+                st.error(f"Invalid provider library JSON: {exc}")
+    st.session_state["provider_library_data"] = provider_library
+    st.session_state["selected_provider_ids"] = {}
+    if provider_library is None:
+        st.info(
+            "The instructor has not configured a provider library yet. "
+            "The scenario and GWP screening tabs remain usable, but a searchable openLCA "
+            "provider selection requires the local catalog-extraction step."
+        )
+    else:
+        problems = library_errors(provider_library)
+        for problem in problems:
+            st.error(problem)
+        if not problems:
+            st.success(
+                f"{len(approved_candidates(provider_library))} approved electricity providers available "
+                f"for {provider_library['database_label']}."
+            )
+            st.warning(
+                "Approved providers are compatible with the selected high-voltage product flow. "
+                "A catalog approval does not verify the regional electricity mix or "
+                "authorize redistribution of ecoinvent data."
+            )
+            choices = approved_candidates(provider_library)
+            locations = sorted({e.get("location", "Not specified") for e in choices})
+            location_filter = st.selectbox(
+                "Filter by geography", ["All geographies"] + locations, key="provider_geography"
+            )
+            text_filter = st.text_input("Search provider activity names", key="provider_search").strip().lower()
+            active_mix = [
+                r for r in st.session_state.get("scenario_payload", {}).get("mix", [])
+                if float(r.get("share") or 0) > 0
+            ]
+            selected = {}
+            for row in active_mix:
+                tech = row["technology"]
+                options = approved_candidates(provider_library, technology=tech, geography=location_filter)
+                if text_filter:
+                    options = [
+                        e for e in options if text_filter in
+                        (e["name"] + " " + e.get("location", "")).lower()
+                    ]
+                st.markdown(f"**{tech.replace('_', ' ').title()} — {float(row['share']):.2%}**")
+                if not options:
+                    st.warning(
+                        f"No approved {tech} providers match the filters. "
+                        "Clear the filters or ask the instructor to review additional processes."
+                    )
+                    continue
+                indexed = {e["id"]: e for e in options}
+                uuid_choice = st.selectbox(
+                    f"Choose {tech} generation process",
+                    options=[None] + list(indexed),
+                    format_func=lambda pid, lookup=indexed: (
+                        "Select a provider..." if pid is None else
+                        f"{lookup[pid]['name']} · {lookup[pid].get('location', 'Not specified')}"
+                    ),
+                    key=f"provider_{st.session_state['preset_reload_id']}_{tech}_{location_filter}_{text_filter}",
+                )
+                if uuid_choice is not None:
+                    selected[tech] = uuid_choice
+            st.session_state["selected_provider_ids"] = selected
+            st.caption(
+                f"Selected {len(selected)} of {len(active_mix)} active generation providers. "
+                "The exporter will only use explicit selections; it never guesses a matching provider."
+            )
+            if st.session_state.get("scenario_payload", {}).get("voltage") != "high":
+                st.warning("The openLCA exporter currently accepts high-voltage scenarios only.")
+
 with tab_impact:
     st.subheader("GWP sensitivity analysis for the whole student LCA")
     st.write("Change only the electricity contribution; all other product-system burdens are held constant. Use the original project's *life-cycle* electricity CI, not a government direct emission factor.")
@@ -237,35 +333,69 @@ with tab_export:
                 z.writestr("sensitivity_result.json", json.dumps(st.session_state['gwp_result'], indent=2))
         st.download_button("Download scenario ZIP", b.getvalue(), file_name="electricity_scenario.zip", mime="application/zip", type="primary")
         st.download_button("Download methodology statement", report, file_name="methodology_report.md", mime="text/markdown")
-        st.write("**For openLCA:** Visit Tab 4 to generate a native openLCA JSON-LD ZIP when an instructor-approved provider catalog is available. This scenario ZIP is for documentation and is not directly importable into openLCA.")
+        st.write("**For openLCA:** Select providers in Tab 2, then use Tab 3 to generate a native JSON-LD ZIP. The scenario ZIP here is for documentation, not directly importable into openLCA.")
         st.warning("Output is not a certified or validated regional LCI. A successful export does not mean a supply mix has been verified.")
 
 
 with tab_openlca:
-    st.subheader("Export an openLCA 2-compatible foreground process")
-    st.info("The instructor configures provider IDs ONCE for the exact destination ecoinvent database. Students never need to choose provider UUIDs. This package references existing local providers; it does not include licensed inventories.")
-    st.markdown("**Prerequisites:** openLCA 2, a matching ecoinvent 3.12 cut-off database, and an instructor-approved provider catalog. Only HIGH-voltage electricity is supported in this release.")
+    st.subheader("Export a custom high-voltage electricity unit process")
+    st.info(
+        "Choose the electricity providers in Tab 2 first. This export contains a single "
+        "foreground process referencing processes already inside your licensed .zolca. "
+        "The cloud app does not contain ecoinvent inventories."
+    )
+    st.markdown(
+        "**Prerequisites:** matching restored ecoinvent 3.12 cut-off .zolca in openLCA 2, "
+        "an instructor-approved provider library, and HIGH-voltage electricity."
+    )
     catalog = None
-    try:
-        secret_catalog = st.secrets.get("provider_catalog_json")
-    except (FileNotFoundError, KeyError, AttributeError):
-        secret_catalog = None
-    if secret_catalog:
+    library = st.session_state.get("provider_library_data")
+    if library is not None:
+        problems = library_errors(library)
+        if problems:
+            st.error("The provider library did not pass validation. Return to Tab 2.")
+        else:
+            chosen = st.session_state.get("selected_provider_ids", {})
+            active = [r["technology"] for r in
+                      st.session_state.get("scenario_payload", {}).get("mix", [])
+                      if float(r.get("share") or 0) > 0]
+            missing = [tech for tech in active if tech not in chosen]
+            if missing:
+                st.warning(
+                    "Select one approved provider for each active technology in Tab 2: "
+                    + ", ".join(missing)
+                )
+            else:
+                try:
+                    catalog = catalog_for_selection(library, chosen)
+                    st.success("Selected providers converted into a validated export catalog.")
+                except ValueError as exc:
+                    st.error(str(exc))
+    else:
+        # Preserve compatibility with the original v0.2 instructor catalog workflow.
         try:
-            catalog = json.loads(secret_catalog) if isinstance(secret_catalog, str) else dict(secret_catalog)
-            st.success("Instructor catalog loaded from app deployment settings.")
-        except (ValueError, TypeError) as ex:
-            st.error(f"Instructor deployment catalog is invalid: {ex}")
-    if catalog is None:
-        catalog_up = st.file_uploader("Upload instructor-approved provider catalog (JSON)", type=["json"], key="catalog_upload")
-        if catalog_up is not None:
+            secret_catalog = st.secrets.get("provider_catalog_json")
+        except (FileNotFoundError, KeyError, AttributeError):
+            secret_catalog = None
+        if secret_catalog:
             try:
-                catalog = json.loads(catalog_up.getvalue().decode("utf-8-sig"))
-            except (ValueError, UnicodeDecodeError) as ex:
-                st.error(f"Catalog file could not be read: {ex}")
+                catalog = json.loads(secret_catalog) if isinstance(secret_catalog, str) else dict(secret_catalog)
+                st.info("Using the legacy v0.2 instructor catalog.")
+            except (ValueError, TypeError) as exc:
+                st.error(f"Legacy instructor catalog is invalid: {exc}")
+        if catalog is None:
+            catalog_up = st.file_uploader(
+                "Optional: upload legacy v0.2 instructor catalog (JSON)",
+                type=["json"], key="catalog_upload"
+            )
+            if catalog_up is not None:
+                try:
+                    catalog = json.loads(catalog_up.getvalue().decode("utf-8-sig"))
+                except (ValueError, UnicodeDecodeError) as exc:
+                    st.error(f"Catalog file could not be read: {exc}")
     sc = st.session_state.get("scenario_payload")
     if catalog is None:
-        st.warning("No approved provider catalog available. The scenario calculator and GWP sensitivity work without it, but the openLCA ZIP cannot be generated. Ask the instructor to configure the catalog.")
+        st.warning("No complete approved provider selection is available. Configure the library and choose providers in Tab 2, or use the legacy v0.2 catalog.")
     elif sc is not None:
         st.caption(f"Target database: {catalog.get('database_label', 'NOT SPECIFIED')} · Catalog reviewed by: {catalog.get('approved_by', 'UNKNOWN')}")
         cat_errors, cat_warnings = validate_catalog(catalog, sc)
@@ -295,7 +425,7 @@ with tab_help:
 2. Check that the shares describe electricity **consumed** by the facility; if only local generation is available, clearly state the limitation.
 3. Use the GWP tab if only a carbon intensity factor is available; **direct and lifecycle intensities are not interchangeable**.
 4. Export the scenario ZIP and attach its methodology report to the assignment.
-5. For an openLCA import, use Tab 4. Your instructor first creates and approves a provider catalog for the SAME local ecoinvent database. Download the JSON-LD ZIP, import into openLCA, verify provider links and connect it to your project.
+5. For openLCA, use **Tab 2** to search and choose approved electricity providers and **Tab 3** to export JSON-LD. The instructor first extracts and approves a provider library from the SAME restored .zolca. After import, verify all links and calculate a test product system.
 
 ### Important exclusions
 - This app does not fetch live electricity data, publish an official Northwest CI, or access licensed ecoinvent content.
