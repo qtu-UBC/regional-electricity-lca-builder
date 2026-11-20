@@ -19,7 +19,7 @@ from provider_library import TECHNOLOGIES
 
 def guess_technology(name: str) -> str:
     n = name.lower()
-    if any(x in n for x in ("hydroelectric", "hydropower", "hydro power", "run-of-river", "reservoir hydro")):
+    if any(x in n for x in ("hydroelectric", "hydropower", "hydro power", "hydro,", "hydro ", "run-of-river", "reservoir hydro")):
         return "hydro"
     if "wind" in n:
         return "wind"
