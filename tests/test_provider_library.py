@@ -20,7 +20,7 @@ def sample_process(number, name, location="CA", flow_number=10):
     flow = NS(id=uid(flow_number), name="electricity, high voltage")
     unit = NS(id=uid(11), name="kWh")
     prop = NS(id=uid(12), name="Energy")
-    reference = NS(input=False, quantitative_reference=True, flow=flow, unit=unit,
+    reference = NS(is_input=False, is_quantitative_reference=True, flow=flow, unit=unit,
                    flow_property=prop)
     return NS(id=uid(number), name=name, location=NS(id=uid(900), name=location),
               exchanges=[reference])
