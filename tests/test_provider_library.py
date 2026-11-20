@@ -106,5 +106,40 @@ class ProviderLibraryTests(unittest.TestCase):
         self.assertTrue(any("truncated" in e for e in library_errors(library)))
 
 
+    def test_market_baseline_separate_from_generation(self):
+        from provider_library import approved_markets
+        library = sample_library()
+        library["approved"] = True
+        library["entries"][0]["approved"] = True
+        library["markets"] = [
+            {
+                "id": uid(500), "name": "market for electricity, high voltage",
+                "location": "Canada, Ontario", "kind": "market", "voltage": "high",
+                "approved": True,
+            },
+            {
+                "id": uid(501), "name": "market for electricity, medium voltage",
+                "location": "Canada, Ontario", "kind": "market", "voltage": "medium",
+                "approved": True,
+            },
+        ]
+        self.assertFalse(library_errors(library), library_errors(library))
+        self.assertEqual(len(approved_markets(library, "high")), 1)
+        with self.assertRaises(ValueError):
+            catalog_for_selection(library, {"hydro": uid(500)})
+
+    def test_market_rejected_as_generation_provider(self):
+        library = sample_library()
+        library["approved"] = True
+        library["entries"][0]["approved"] = True
+        rejected = copy.deepcopy(library["entries"][0])
+        rejected["id"] = uid(999)
+        rejected["name"] = "market for electricity, high voltage"
+        rejected["approved"] = True
+        library["entries"].append(rejected)
+        self.assertTrue(any("downstream electricity market" in e
+                            for e in library_errors(library)))
+
+
 if __name__ == "__main__":
     unittest.main()
