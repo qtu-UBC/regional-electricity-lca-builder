@@ -32,7 +32,7 @@ def make_catalog(mapping, fetch, database_label, reviewer, reviewed_date=None):
     for tech,pid in mapping.items():
         proc=fetch(pid)
         if proc is None:raise ValueError(f'{tech} provider UUID not in target database: {pid}')
-        outputs=[e for e in proc.exchanges or [] if e.input is False and e.quantitative_reference is True]
+        outputs=[e for e in proc.exchanges or [] if e.is_input is False and e.is_quantitative_reference is True]
         if len(outputs)!=1:raise ValueError(f'{tech}: need exactly one quantitative reference OUTPUT')
         o=outputs[0]
         if not o.flow or not o.unit or not o.flow_property:
