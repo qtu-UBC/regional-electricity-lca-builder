@@ -1,8 +1,15 @@
-# Regional Electricity LCA Builder — v0.2
+# Regional Electricity LCA Builder — v0.4
 
-**LCA Clinic teaching tool, 16 November 2026.** A student-facing Streamlit calculator plus a conditional **native openLCA 2 JSON-LD foreground-process ZIP** exporter. For preliminary attributional LCA and GWP sensitivity work, not a regulator-approved, certified, or measured regional grid model.
+**LCA Clinic teaching tool, updated 20 November 2026.** A student-facing Streamlit calculator plus a conditional **native openLCA 2 JSON-LD foreground-process ZIP** exporter. For preliminary attributional LCA and GWP sensitivity work, not a regulator-approved, certified, or measured regional grid model.
 
-## Student workflow (browser → openLCA)
+
+## New in v0.4: searchable providers from your shared .zolca
+
+The recommended workflow now uses the **same ecoinvent 3.12 cut-off .zolca** restored by the instructor and students. The instructor extracts a library of electricity generator metadata and provider UUIDs once (using the local openLCA IPC server), reviews/approves individual entries, and lets students search approved generation processes in **Tab 2 · Select providers**. Students then export a custom high-voltage foreground electricity unit process in **Tab 3 · Export to openLCA**. openLCA performs the LCI/LCIA calculations; Streamlit does not have to calculate CI.
+
+**[Read the complete v0.4 instructor setup and student instructions](docs/SETUP_v0.4.md).** This includes the `extract_provider_library.py` command, review and licensing precautions, Streamlit secrets and pilot import checklist. Do not publish a licensed database or unreviewed metadata. The older v0.2 manual provider catalog and GWP sensitivity functions remain available as optional/legacy workflows.
+
+## Legacy v0.2 student workflow (browser → openLCA)
 
 1. Use the hosted Streamlit application. Select year, region, voltage, and **boundary**. Replace the HYPOTHETICAL demonstration mix with a sourced supply mix. Use the GWP sensitivity tab when only direct carbon factors are known.
 2. Review share and provenance warnings. For a real consumption-based regional market, account for imports, exports and interzonal transfers. A regional generation mix alone may not represent the site supply.
@@ -14,7 +21,7 @@
 
 **Important:** A successful file import does not prove that the provider links work. Live testing against the actual licensed database is still required. If provider UUIDs do not match, ask the instructor for the catalog generated specifically for your database; do not manually guess or switch UUIDs.
 
-## Instructor one-time setup
+## Legacy v0.2 instructor setup (for manual provider mapping)
 
 The class must have access to a properly licensed **openLCA Nexus ecoinvent 3.12 cut-off unit-process database** in openLCA 2. The *same database installation/version* must be used to generate the catalog and import students' scenario packages. Check institutional licensing and whether provider metadata may be uploaded to a cloud service; do not publish ecoinvent inventories or uncontrolled catalog exports.
 
@@ -52,10 +59,10 @@ Only `app.py`, `grid_core.py`, `openlca_jsonld.py`, `requirements.txt`, and the 
 
 ## Contents
 
-- `app.py`: Streamlit interface, now including **4 · openLCA import** tab.
+- `app.py`: Streamlit interface with preset mix selection, searchable provider selector, and openLCA export.
 - `grid_core.py`: validated supply shares and GWP screening.
 - `openlca_jsonld.py`: native openLCA 2 ZIP process exporter (`olca-schema.json`, `processes/<UUID>.json`), with guarded use of external provider refs.
-- `instructor_catalog.py`: one-time local IPC catalog generator; rejects mixed reference products.
+- `instructor_catalog.py`: optional legacy v0.2 one-time manual catalog generator.\n- `extract_provider_library.py`: recommended v0.4 local IPC discovery script for all electricity generation candidates.\n- `provider_library.py`: validates approved searchable provider metadata and maps student selections into exporter references.
 - `openlca_bridge.py`: optional **legacy v0.1** alternative direct IPC writer (not needed for student ZIP workflow).
 - `Electricity_Scenario_Student_Template.xlsx`: classroom assumptions and sensitivity companion.
 - `data/`: example **hypothetical** mix, example scenario, and a blank instructor mapping template. **No real IESO Northwest CI or ecoinvent inventories are bundled.**
