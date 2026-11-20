@@ -131,7 +131,7 @@ def main():
     args = parser.parse_args()
     import olca_ipc as ipc
     import olca_schema as o
-    client = ipc.Client(port=args.port)
+    client = ipc.Client(args.port)
     library = extract_library(
         client.get_descriptors(o.Process),
         lambda uid: client.get(o.Process, uid),
