@@ -123,7 +123,7 @@ def extract_library(descriptors, fetch, database_label: str, reviewer: str,
 def electricity_voltage(flow_name: str) -> str | None:
     """Select only distinct electricity high/medium/low voltage reference products."""
     import re
-    match = re.match(r"^electricity,\\s*(high|medium|low) voltage(?:$|[, ].*)",
+    match = re.match(r"^electricity,\s*(high|medium|low) voltage(?:$|[, ].*)",
                      (flow_name or "").strip().lower())
     return match.group(1) if match else None
 
