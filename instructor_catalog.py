@@ -67,7 +67,7 @@ def main():
         p.error('database label must identify ecoinvent 3.12 cut-off')
     import olca_ipc as ipc
     import olca_schema as o
-    client=ipc.Client(port=args.port)
+    client=ipc.Client(args.port)
     catalog=make_catalog(load_mapping(args.mapping),lambda uid:client.get(o.Process,uid),
                          args.database_label,args.reviewer)
     Path(args.out).write_text(json.dumps(catalog,indent=2,ensure_ascii=False),encoding='utf-8')
