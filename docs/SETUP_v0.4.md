@@ -1,3 +1,45 @@
+# v0.5 — Electricity markets and generators are separate
+
+Version 0.5 discovers **providers of electricity product flows** directly from openLCA
+rather than filtering the activity list solely by names. This includes qualifying
+electricity-reference cogeneration activities, and distinguishes:
+- **Existing markets:** `market for electricity...` and `market group for electricity...`.
+  They can be searched as baseline references at high, medium, or low voltage.
+  They are **not** inputs to the customized generation mix.
+- **Generation processes:** high-voltage electricity-reference processes (including
+  qualifying cogeneration). These are the **only** options for the custom
+  high-voltage unit-process exporter.
+
+The script requires the current `olca-ipc` API, using `client.get_providers(flow)`.
+Re-run extraction: **old `provider_library_REVIEW.json` files do not contain
+the new `markets` section**.
+
+```bash
+git pull origin main
+python extract_provider_library.py \
+  --database-label "ecoinvent 3.12 cut-off (class shared .zolca)" \
+  --reviewer "Course instructor" \
+  --out provider_library_REVIEW.json
+```
+
+The extracted catalog remains unapproved. Review **both** `entries` (generation)
+and `markets` (baseline references). Mark only appropriate individual records
+`"approved": true`, and approve the library after confirming the database,
+voltage, geography, and licensed-metadata sharing restrictions. If no eligible
+biomass/cogeneration process is found, stop rather than substitute a mismatched
+provider. An electricity **coproduct** without electricity as the quantitative
+reference is not automatically eligible.
+
+Student **Tab 2 · Select providers** now has section A (existing regional markets)
+and section B (generation provider assignments). Only section B determines the
+custom JSON-LD process exported in Tab 3. For a baseline market, select the
+corresponding existing process directly in openLCA.
+
+**Verification:** These changes have not been tested against the instructor's
+local `.zolca` or through an actual JSON-LD import. Confirm both before use.
+
+---
+
 # v0.4 — Instructor setup and student workflow
 
 The web application **does not compute life-cycle carbon intensity from ecoinvent**. Instead it builds one regional **high-voltage electricity foreground unit process** with links to electricity generation processes in the instructor's ecoinvent 3.12 **cut-off** `.zolca` database. Students import the exported JSON-LD ZIP into their restored copy of the same database and calculate impacts using openLCA.
