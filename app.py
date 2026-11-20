@@ -228,12 +228,6 @@ with tab_library:
                 "A catalog approval does not verify the regional electricity mix or "
                 "authorize redistribution of ecoinvent data."
             )
-            choices = approved_candidates(provider_library)
-            locations = sorted({e.get("location", "Not specified") for e in choices})
-            location_filter = st.selectbox(
-                "Filter by geography", ["All geographies"] + locations, key="provider_geography"
-            )
-            text_filter = st.text_input("Search provider activity names", key="provider_search").strip().lower()
             active_mix = [
                 r for r in st.session_state.get("scenario_payload", {}).get("mix", [])
                 if float(r.get("share") or 0) > 0
@@ -241,13 +235,26 @@ with tab_library:
             selected = {}
             for row in active_mix:
                 tech = row["technology"]
+                st.markdown(f"**{tech.replace('_', ' ').title()} — {float(row['share']):.2%}**")
+                tech_options = approved_candidates(provider_library, technology=tech)
+                locations = sorted({e.get("location", "Not specified") for e in tech_options})
+                filter_left, filter_right = st.columns(2)
+                with filter_left:
+                    location_filter = st.selectbox(
+                        f"{tech} — Geography",
+                        ["All geographies"] + locations,
+                        key=f"provider_geo_{tech}",
+                    )
+                with filter_right:
+                    text_filter = st.text_input(
+                        f"{tech} — Search activity", key=f"provider_search_{tech}"
+                    ).strip().lower()
                 options = approved_candidates(provider_library, technology=tech, geography=location_filter)
                 if text_filter:
                     options = [
                         e for e in options if text_filter in
                         (e["name"] + " " + e.get("location", "")).lower()
                     ]
-                st.markdown(f"**{tech.replace('_', ' ').title()} — {float(row['share']):.2%}**")
                 if not options:
                     st.warning(
                         f"No approved {tech} providers match the filters. "
