@@ -15,7 +15,7 @@ import streamlit as st
 from grid_core import (TECHNOLOGIES, parse_mix_csv, validate_scenario, regional_lifecycle_ci,
                        project_sensitivity, direct_factor_correction, dump_mix_csv, scenario_report)
 from openlca_jsonld import validate_catalog, package as make_openlca_package, package_preview
-from provider_library import library_errors, approved_candidates, catalog_for_selection
+from provider_library import library_errors, approved_candidates, approved_markets, catalog_for_selection
 
 # Built-in teaching examples: no licensed ecoinvent data or verified grid CI.
 PRESET_DEMO = "Demo — Hypothetical electricity mix"
@@ -228,6 +228,49 @@ with tab_library:
                 "A catalog approval does not verify the regional electricity mix or "
                 "authorize redistribution of ecoinvent data."
             )
+            st.markdown("#### A · Existing regional electricity markets (baseline reference)")
+            st.caption(
+                "These datasets are pre-mixed electricity markets. Use them as baseline "
+                "references in openLCA, NOT as generation technologies in a custom grid."
+            )
+            available_markets = approved_markets(provider_library)
+            if not available_markets:
+                st.info(
+                    "No approved electricity markets available yet. The instructor must run "
+                    "the v0.5 extractor and review/approve market candidates."
+                )
+            else:
+                market_voltage = st.selectbox(
+                    "Market voltage", ["high", "medium", "low"], key="market_voltage"
+                )
+                market_search = st.text_input(
+                    "Search regional electricity markets (activity / geography)",
+                    key="market_search",
+                ).strip().lower()
+                filtered_markets = approved_markets(provider_library, voltage=market_voltage)
+                if market_search:
+                    filtered_markets = [
+                        m for m in filtered_markets
+                        if market_search in (m["name"] + " " + m.get("location", "")).lower()
+                    ]
+                st.selectbox(
+                    "Existing market for baseline comparison",
+                    options=[None] + [m["id"] for m in filtered_markets],
+                    format_func=lambda uid: (
+                        "Choose a market (optional)" if uid is None else next(
+                            f"{m['name']} · {m.get('location', 'Not specified')}"
+                            for m in filtered_markets if m["id"] == uid
+                        )
+                    ),
+                    key="existing_market_baseline",
+                )
+                st.caption(
+                    "Baseline selection is a reference only: v0.5 does not replace "
+                    "or import this already-existing process. Choose the matching "
+                    "market in your local openLCA product system."
+                )
+            st.divider()
+            st.markdown("#### B · Generation providers for a custom electricity mix")
             active_mix = [
                 r for r in st.session_state.get("scenario_payload", {}).get("mix", [])
                 if float(r.get("share") or 0) > 0
