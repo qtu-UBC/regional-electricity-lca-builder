@@ -161,8 +161,10 @@ def extract_flow_based_library(flow_descriptors, providers_of, fetch, database_l
     examined = 0
     excluded_non_reference = 0
     for flow, voltage in flows:
-        for pdesc in providers_of(flow):
-            if not getattr(pdesc, "id", None) or pdesc.id in seen:
+        for pair in providers_of(flow):
+            # olca-ipc >=2 Client.get_providers returns TechFlow(provider=Ref, flow=Ref).
+            pdesc = getattr(pair, "provider", None)
+            if not pdesc or not getattr(pdesc, "id", None) or pdesc.id in seen:
                 continue
             if limit and examined >= limit:
                 truncated = True
@@ -270,7 +272,7 @@ def main():
     client = ipc.Client(args.port)
     library = extract_flow_based_library(
         client.get_descriptors(o.Flow),
-        client.get_providers_of,
+        client.get_providers,
         lambda uid: client.get(o.Process, uid),
         args.database_label, args.reviewer, args.limit)
     Path(args.out).write_text(json.dumps(library, indent=2, ensure_ascii=False),
