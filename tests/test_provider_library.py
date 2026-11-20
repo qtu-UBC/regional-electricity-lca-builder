@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from extract_provider_library import extract_library, guess_technology, is_candidate_name
+from extract_provider_library import extract_library, extract_flow_based_library, electricity_voltage, guess_technology, is_candidate_name
 from provider_library import library_errors, approved_candidates, catalog_for_selection
 from openlca_jsonld import make_process
 
@@ -139,6 +139,41 @@ class ProviderLibraryTests(unittest.TestCase):
         library["entries"].append(rejected)
         self.assertTrue(any("downstream electricity market" in e
                             for e in library_errors(library)))
+
+
+    def test_v05_electricity_product_flow_discovery(self):
+        self.assertEqual(electricity_voltage("electricity, high voltage"), "high")
+        self.assertEqual(electricity_voltage("electricity, medium voltage"), "medium")
+        self.assertIsNone(electricity_voltage("heat, district or industrial"))
+        flows = [
+            NS(id=uid(10), name="electricity, high voltage"),
+            NS(id=uid(30), name="electricity, medium voltage"),
+        ]
+        hydro = sample_process(101, "electricity production, hydro, run-of-river")
+        cogeneration = sample_process(102, "heat and power co-generation, biogas, engine")
+        market = sample_process(103, "market for electricity, high voltage")
+        mvmarket = sample_process(104, "market for electricity, medium voltage")
+        mvmarket.exchanges[0].flow = NS(id=uid(30), name="electricity, medium voltage")
+        processes = {p.id: p for p in [hydro, cogeneration, market, mvmarket]}
+        by_flow = {
+            flows[0].id: [hydro, cogeneration, market],
+            flows[1].id: [mvmarket],
+        }
+        def providers(flow):
+            return [NS(provider=NS(id=p.id, name=p.name), flow=flow)
+                    for p in by_flow[flow.id]]
+        library = extract_flow_based_library(
+            flows, providers, processes.get,
+            "ecoinvent 3.12 cut-off shared .zolca", "Instructor")
+        self.assertEqual(len(library["entries"]), 2)
+        self.assertEqual(len(library["markets"]), 2)
+        self.assertIn("biomass", [e["technology"] for e in library["entries"]])
+        self.assertEqual({e["voltage"] for e in library["markets"]},
+                         {"high", "medium"})
+        self.assertFalse(library["approved"])
+        self.assertTrue(all(not e["approved"] for e in library["entries"]))
+
+
 
 
 if __name__ == "__main__":
