@@ -1,9 +1,27 @@
-# Regional Electricity LCA Builder — v0.4
+# Regional Electricity LCA Builder — v0.5
 
 **LCA Clinic teaching tool, updated 20 November 2026.** A student-facing Streamlit calculator plus a conditional **native openLCA 2 JSON-LD foreground-process ZIP** exporter. For preliminary attributional LCA and GWP sensitivity work, not a regulator-approved, certified, or measured regional grid model.
 
 
-## New in v0.4: searchable providers from your shared .zolca
+## New in v0.5: separate electricity markets and generator providers
+
+The local extractor now discovers candidate providers by the **electricity reference
+product** (high/medium/low voltage) through openLCA IPC, rather than by activity
+names alone. This can identify electricity-reference cogeneration datasets as
+well as the familiar `electricity production...` processes.
+
+In **Tab 2**, section **A** lists approved existing regional electricity
+**markets** for baseline selection, while section **B** assigns approved
+high-voltage **generation** processes to each custom grid share. Market
+selection does not alter the custom grid. **Only generator assignments**
+are used in the exported high-voltage foreground process.
+
+**Re-run `extract_provider_library.py` after pulling v0.5**. Previously
+extracted v0.4 catalogs lack the new `markets` entries. All candidates
+start unapproved and require instructor review. See
+[the current local extraction and review guide](docs/SETUP_v0.4.md).
+
+## v0.4 foundation: searchable providers from your shared .zolca
 
 The recommended workflow now uses the **same ecoinvent 3.12 cut-off .zolca** restored by the instructor and students. The instructor extracts a library of electricity generator metadata and provider UUIDs once (using the local openLCA IPC server), reviews/approves individual entries, and lets students search approved generation processes in **Tab 2 · Select providers**. Students then export a custom high-voltage foreground electricity unit process in **Tab 3 · Export to openLCA**. openLCA performs the LCI/LCIA calculations; Streamlit does not have to calculate CI.
 
