@@ -1,0 +1,4 @@
+technology,process_uuid,notes
+hydro,,Select an electricity generation PROVIDER process in your local openLCA database
+nuclear,,Use the provider process UUID printed by discover; no licensed data is distributed
+natural_gas,,The provider must output the same electricity product flow as other suppliers

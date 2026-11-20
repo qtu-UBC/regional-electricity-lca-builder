@@ -1,0 +1,6 @@
+technology,process_uuid,notes
+hydro,,Select appropriate licensed high-voltage electricity process
+nuclear,,Select appropriate licensed high-voltage electricity process
+natural_gas,,Select appropriate licensed high-voltage electricity process
+wind,,Optional; add if used
+solar,,Optional; add if used

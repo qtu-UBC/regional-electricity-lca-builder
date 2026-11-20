@@ -1,0 +1,3 @@
+# Run on an instructor workstation connected to openLCA 2 IPC (not on Streamlit Cloud)
+olca-ipc>=2.0,<3
+olca-schema>=2.0,<3

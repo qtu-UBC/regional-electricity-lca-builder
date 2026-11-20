@@ -1,0 +1,15 @@
+{
+  "region": "DEMO — NOT IESO NORTHWEST",
+  "year": 2025,
+  "boundary": "hypothetical",
+  "evidence_status": "illustrative",
+  "voltage": "high",
+  "loss_fraction": 0.0,
+  "ecoinvent_version": "3.12 cut-off (user's licensed database)",
+  "source_url": "",
+  "mix": [
+    {"technology": "hydro", "share": 0.8, "ci_lifecycle_g_per_kwh": null, "source_url": "", "notes": "Hypothetical"},
+    {"technology": "nuclear", "share": 0.1, "ci_lifecycle_g_per_kwh": null, "source_url": "", "notes": "Hypothetical"},
+    {"technology": "natural_gas", "share": 0.1, "ci_lifecycle_g_per_kwh": null, "source_url": "", "notes": "Hypothetical"}
+  ]
+}
