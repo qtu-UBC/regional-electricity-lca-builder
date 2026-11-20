@@ -1,0 +1,5 @@
+technology,share,ci_lifecycle_g_per_kwh,source_url,notes
+hydro,0.868292682927,,,"Client-proposed 2025 generation assumption; 3,132.8 GWh; Hydroelectric; not independently verified"
+wind,0.080293791574,,,Client-proposed 2025 generation assumption; 289.7 GWh; Wind; not independently verified
+biomass,0.051413525499,,,Client-proposed 2025 generation assumption; 185.5 GWh; Biofuel (mapped to biomass); not independently verified
+natural_gas,0.000000000000,,,Client-proposed 2025 generation assumption; 0.0 GWh; Natural gas; not independently verified
