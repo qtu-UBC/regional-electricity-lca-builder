@@ -1,6 +1,6 @@
 # Student tutorial: IESO Northwest 2025 generation-mix scenario
 
-**Regional Electricity LCA Builder v0.2 · LCA Clinic · 17 November 2026**
+**Regional Electricity LCA Builder v0.4 · LCA Clinic · 20 November 2026**
 
 **Important:** This is a **client-proposed estimate of 2025 electricity generated within the Northwest region**. It has **not been independently verified**, and it is **not** an official IESO consumption-based carbon intensity. Local generation can differ from electricity delivered to a facility because of imports, exports, interzonal exchanges and losses.
 
@@ -27,7 +27,7 @@ The app calls the **biofuel** technology `biomass`. This is an entry category, *
 
 ## 3. Tab 1 — Build supply mix
 
-1. Open your class Streamlit link and select **1 · Build supply mix**.
+1. Open your class Streamlit link and select **1 · Build supply mix**. Under **Start with a scenario**, select **IESO Northwest — 2025 proposed generation mix**. The generation shares and metadata load automatically.
 2. Enter **Region / scenario label:** `IESO Northwest — 2025 client-proposed generation scenario`.
 3. Set **Reference year:** `2025`.
 4. For **What do the shares represent?**, select **generation**, *not consumption*.
@@ -35,12 +35,12 @@ The app calls the **biofuel** technology `biomass`. This is an entry category, *
 6. Set **Electricity delivery level** to **high** for the optional high-voltage openLCA demonstration only. Confirm the correct voltage for any actual project.
 7. Leave **Losses to delivered kWh** at **0.0%** for this exercise; it means losses are *not modeled*, not that real losses are zero.
 8. Leave **Primary public data source URL** blank if no public URL is available. Document the client-provided assumption in your report. Do not invent a URL.
-9. Click **Optional: upload a mix CSV** and select `IESO_Northwest_2025_Generation_Scenario.csv`. The rows should show `hydro`, `wind`, `biomass`, `natural_gas`.
+9. Verify that the preloaded rows show `hydro`, `wind`, `biomass`, and `natural_gas`. You may optionally upload the provided CSV instead; do not upload it in addition to the preset, since it already contains the same shares.
 10. Confirm **Share sum = 1.0000** and **Validation errors = 0**. Review the expected warnings about generation-versus-consumption and data provenance.
 
 **Expected outcome:** **Computed life-cycle CI = Not available**. This is correct because the dataset supplies generation shares but *not* technology-specific life-cycle intensities. Do not interpret a missing CI as zero emissions.
 
-## 4. Tab 2 — GWP sensitivity
+## 4. Tab 4 — Optional GWP screening
 
 To quantify a change in the **whole product LCA**, students need their baseline project GWP, electricity demand per functional unit, and compatible original and alternative **life-cycle** electricity carbon intensities.
 
@@ -56,27 +56,27 @@ If instructors supply compatible technology-specific life-cycle factors, the alt
 
 If no compatible life-cycle factors are available, **do not calculate a numeric result from the generation shares alone**. The app's **Direct/operational CI only** option is an approximate screening correction, and is especially limited when the technology mix changes. It is not equivalent to a regional LCI.
 
-## 5. Tab 3 — Save the scenario
+## 5. Tab 5 — Save the scenario
 
-1. Open **3 · Scenario ZIP**.
+1. Open **5 · Scenario ZIP**.
 2. Click **Download scenario ZIP** to save the inputs, mix.csv, methodology report and (if run) sensitivity result.
 3. Keep the original Ontario provincial ecoinvent result as the **baseline**. Label the new Northwest scenario as **client-proposed generation-based sensitivity**.
 4. Include the share calculations, provenance, and warning statements in the report.
 
 The Scenario ZIP is for **documentation** and cannot be directly imported into openLCA.
 
-## 6. Tab 4 — Optional openLCA modeling (instructor enabled)
+## 6. Tabs 2 and 3 — Select generation providers and export to openLCA
 
-This path needs an **instructor-approved provider catalog for the same local ecoinvent 3.12 cut-off database** and a checked openLCA 2 installation. The cloud app does **not** supply licensed ecoinvent inventories.
+This path requires the instructor to extract and approve a searchable electricity-provider library from the **same restored ecoinvent 3.12 cut-off .zolca** students will use. The cloud app never includes licensed ecoinvent inventories.
 
-1. Ask your instructor to validate technology mappings for active categories: **hydro, wind, biomass**. The zero-share natural-gas row needs no provider for this scenario.
-2. Confirm the scenario uses **high voltage**. The v0.2 exporter does not support medium or low voltage.
-3. If the catalog is available, open **4 · openLCA import** and download **openLCA JSON-LD ZIP**.
-4. Import the ZIP into the **matching** licensed openLCA database; avoid overwriting existing datasets.
-5. Inspect the imported foreground process, check each default provider, run linking checks, create a test product system and verify the LCA result.
-6. Only after instructor validation, use the custom market as an alternative electricity input in a compatible high-voltage product system and compare against the original Ontario baseline.
+1. Confirm your instructor has made a provider library available, either via deployment settings or a session-uploaded approved JSON. No per-student UUID lookup should be necessary.
+2. Open **2 · Select providers**. For each active generation technology (hydro, wind, biomass), use the location filter and activity-name search to select an **instructor-approved** high-voltage generation provider. There is no need to select a provider for 0% natural gas.
+3. Verify the provider choices use appropriate technologies and geographies. If no compatible biomass or hydro provider is available, stop and ask the instructor to review the local database. Do not pick a different technology merely to complete the export.
+4. Open **3 · Export to openLCA**. Confirm all active technologies have providers and no compatibility errors appear, then download the **openLCA JSON-LD ZIP**.
+5. Import that ZIP into your locally restored copy of the **same class .zolca**. Avoid overwriting existing datasets. Inspect the new foreground process and its default providers, run linking checks, create a test product system and verify openLCA can calculate plausible LCI/LCIA results.
+6. Only after instructor validation, use the custom high-voltage process in a compatible product system and compare with the original Ontario provincial-grid baseline.
 
-**Critical limitations:** The package does not represent unmodeled imports or interzonal exchanges, independently establish a regional CI, automatically add grid infrastructure, or implement medium/low-voltage transformation. Successful ZIP generation does not establish a valid regional LCA.
+**Critical limitations:** This is still only a client-proposed **generation-based** electricity scenario. It does not automatically incorporate grid imports, interzonal transfers, T&D infrastructure, or medium-/low-voltage conversion. Import success alone is not proof of a representative regional electricity LCA. The results are calculated inside openLCA, not by the Streamlit app.
 
 ## 7. What to submit
 
@@ -88,4 +88,4 @@ This path needs an **instructor-approved provider catalog for the same local eco
 
 ## Instructor note
 
-The supplied data are suitable for a **classroom sensitivity scenario**. They are not sufficient, on their own, to assert that the electricity delivered to the site is 86.8% hydropower or to claim a particular regional carbon intensity. Seek the source/methodology from the client before presenting this as a measured Northwest electricity mix.
+The supplied data are suitable for a **classroom sensitivity scenario**. Instructor preparation for v0.4 is described in [the repository setup guide](../docs/SETUP_v0.4.md). They are not sufficient, on their own, to assert that the electricity delivered to the site is 86.8% hydropower or to claim a particular regional carbon intensity. Seek the source/methodology from the client before presenting this as a measured Northwest electricity mix.
