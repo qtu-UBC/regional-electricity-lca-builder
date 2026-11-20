@@ -17,8 +17,18 @@ from openlca_jsonld import validate_catalog, package as make_openlca_package, pa
 
 st.set_page_config(page_title="Regional Electricity LCA Builder", page_icon="⚡", layout="wide")
 st.title("⚡ Regional Electricity LCA Builder")
-st.caption("LCA Clinic teaching prototype · scenario validation, lifecycle GWP screening, reproducible exports")
-st.info("No official IESO Northwest intensity is bundled. Demonstration shares below are HYPOTHETICAL, not regional measurements. The tool does not automatically retrieve government data or ecoinvent inventories.")
+st.caption(
+    "A student-friendly tool for regional electricity LCA modeling, "
+    "carbon intensity estimation, and sensitivity analysis."
+)
+st.info(
+    "This tool supports electricity LCA scenario modeling for any "
+    "geographic location. The default electricity mix is hypothetical "
+    "and provided for demonstration purposes only. Users are responsible "
+    "for verifying their input data. The tool does not automatically "
+    "retrieve government electricity statistics or provide licensed "
+    "background LCI datasets."
+)
 
 tab_build, tab_impact, tab_export, tab_openlca, tab_help = st.tabs(["1 · Build supply mix", "2 · GWP sensitivity", "3 · Scenario ZIP", "4 · openLCA import", "Guide & cautions"])
 
