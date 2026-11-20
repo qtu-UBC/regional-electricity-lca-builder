@@ -98,7 +98,7 @@ class CatalogChecks(unittest.TestCase):
         unit=Obj(id=uid(12),name='kWh')
         fp=Obj(id=uid(13),name='Energy')
         def fetch(pid):
-            exchange=Obj(input=False,quantitative_reference=True,flow=f,unit=unit,flow_property=fp)
+            exchange=Obj(is_input=False,is_quantitative_reference=True,flow=f,unit=unit,flow_property=fp)
             return Obj(id=pid,name='TEST provider',exchanges=[exchange])
         cat=make_catalog({'hydro':uid(21)},fetch,'ecoinvent 3.12 cut-off UPR','Test reviewer')
         self.assertFalse(cat['approved'])
@@ -108,7 +108,7 @@ class CatalogChecks(unittest.TestCase):
         def fetch(pid):
             f=Obj(id=uid(11 if pid==uid(21) else 99),name='electricity, high voltage')
             unit=Obj(id=uid(12),name='kWh');fp=Obj(id=uid(13),name='Energy')
-            return Obj(id=pid,name='TEST provider',exchanges=[Obj(input=False,quantitative_reference=True,flow=f,unit=unit,flow_property=fp)])
+            return Obj(id=pid,name='TEST provider',exchanges=[Obj(is_input=False,is_quantitative_reference=True,flow=f,unit=unit,flow_property=fp)])
         with self.assertRaises(ValueError):make_catalog({'hydro':uid(21),'natural_gas':uid(22)},fetch,'ecoinvent 3.12 cut-off UPR','Reviewer')
 
 if __name__=='__main__':unittest.main()
