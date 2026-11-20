@@ -71,7 +71,7 @@ def extract_library(descriptors, fetch, database_label: str, reviewer: str,
         if not proc:
             continue
         outputs = [e for e in (proc.exchanges or [])
-                   if e.input is False and e.quantitative_reference is True]
+                   if e.is_input is False and e.is_quantitative_reference is True]
         if len(outputs) != 1:
             continue
         o = outputs[0]
