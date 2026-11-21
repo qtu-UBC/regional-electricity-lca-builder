@@ -1,7 +1,7 @@
 """Regional Electricity LCA Builder — Streamlit student interface.
 
 Run: streamlit run app.py
-No internet or licensed ecoinvent processes are required to use the scenario/sensitivity modules.
+No internet or licensed ecoinvent processes are required to define scenario inputs.
 """
 import io
 import json
@@ -12,8 +12,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from grid_core import (TECHNOLOGIES, parse_mix_csv, validate_scenario, regional_lifecycle_ci,
-                       project_sensitivity, direct_factor_correction, dump_mix_csv, scenario_report)
+from grid_core import (
+    TECHNOLOGIES, parse_mix_csv, validate_scenario, dump_supply_mix_csv,
+    scenario_documentation_report,
+)
 from openlca_jsonld import validate_catalog, package as make_openlca_package, package_preview
 from provider_library import (
     library_errors, approved_candidates, approved_markets, catalog_for_selection,
@@ -91,7 +93,12 @@ st.info(
     "verify regional grid statistics."
 )
 
-tab_build, tab_library, tab_openlca, tab_impact, tab_export, tab_help = st.tabs(["1 · Build supply mix", "2 · Select providers", "3 · Export to openLCA", "Optional · GWP screening", "5 · Scenario ZIP", "Guide & cautions"])
+tab_build, tab_library, tab_openlca, tab_help = st.tabs([
+    "1 · Build supply mix",
+    "2 · Select providers",
+    "3 · Export to openLCA",
+    "Guide & cautions",
+])
 
 with tab_build:
     st.subheader("Start with an example or create your own")
@@ -124,7 +131,7 @@ with tab_build:
         evidence_status = st.selectbox("Evidence / review status", ["illustrative", "user_supplied_unverified", "verified"], key="scenario_evidence", help="Verified means an instructor checked the provenance, geographic scope, balance and year.")
     with c3:
         voltage = st.selectbox("Electricity delivery level", ["high", "medium", "low"], key="scenario_voltage")
-        losses_pct = st.number_input("Losses to delivered kWh (%) — screening scaling", min_value=0.0, max_value=34.9, step=0.5, key="scenario_losses_pct")
+        losses_pct = st.number_input("Losses to delivered kWh (%) — simplified scaling", min_value=0.0, max_value=34.9, step=0.5, key="scenario_losses_pct")
     source_url = st.text_input("Primary public data source URL (required for documented scenarios)", key="scenario_source_url")
     ecoinvent_version = st.selectbox(
         "Background LCI database (supported for openLCA export)",
@@ -132,15 +139,14 @@ with tab_build:
         key="scenario_background",
         help=(
             "Only ecoinvent 3.12 cut-off is supported by the current JSON-LD exporter. "
-            "The destination openLCA database must match the instructor's shared .zolca. "
-            "The optional GWP screening calculator does not require ecoinvent."
+            "The destination openLCA database must match the instructor's shared .zolca."
         ),
     )
 
     st.subheader("Generation / supply shares")
     reload_id = st.session_state["preset_reload_id"]
     uploaded = st.file_uploader(
-        "Optional: upload a mix CSV (technology, share, optional CI, source URL)",
+        "Optional: upload a mix CSV (technology, share, source URL, notes)",
         type=["csv"], key=f"mixup_{reload_id}"
     )
     if uploaded is not None:
@@ -156,15 +162,24 @@ with tab_build:
         mix = st.session_state["starting_mix_rows"]
         editor_key = f"mix_preset_{reload_id}"
     if mix:
-        df = pd.DataFrame(mix)
-        edited = st.data_editor(df, num_rows="dynamic", use_container_width=True, key=editor_key,
+        # Legacy input CSVs may include CI columns; they are not used in the
+        # student-facing custom unit-process workflow.
+        df = pd.DataFrame(mix).reindex(
+            columns=["technology", "share", "source_url", "notes"]
+        )
+        edited = st.data_editor(
+            df, num_rows="dynamic", use_container_width=True, key=editor_key,
             column_config={
-                "technology": st.column_config.SelectboxColumn("Technology", options=list(TECHNOLOGIES), required=True),
-                "share": st.column_config.NumberColumn("Supply fraction (0–1)", min_value=0.0, max_value=1.0, format="%.4f"),
-                "ci_lifecycle_g_per_kwh": st.column_config.NumberColumn("Life-cycle CI (g CO₂e/kWh) · optional", min_value=0.0, format="%.2f"),
+                "technology": st.column_config.SelectboxColumn(
+                    "Technology", options=list(TECHNOLOGIES), required=True,
+                ),
+                "share": st.column_config.NumberColumn(
+                    "Supply fraction (0–1)", min_value=0.0, max_value=1.0, format="%.4f",
+                ),
                 "source_url": st.column_config.TextColumn("Source URL"),
                 "notes": st.column_config.TextColumn("Notes"),
-            })
+            },
+        )
         rows = edited.where(pd.notna(edited), None).to_dict(orient="records")
     else:
         rows = []
@@ -174,23 +189,13 @@ with tab_build:
                "ecoinvent_version":ecoinvent_version,"mix":rows}
     errors, warnings = validate_scenario(payload)
     st.markdown("#### Scenario validation")
-    sum_col, error_col, advisory_col, ci_col = st.columns(4)
+    sum_col, error_col, advisory_col = st.columns(3)
     with sum_col:
         st.metric("Share sum", f"{sum(float(r.get('share') or 0) for r in rows):.4f}")
     with error_col:
         st.metric("Errors", len(errors))
     with advisory_col:
         st.metric("Advisories", len(warnings))
-    candidate_ci = regional_lifecycle_ci(payload) if not errors else None
-    with ci_col:
-        st.metric(
-            "Life-cycle CI",
-            f"{candidate_ci:,.1f} g CO₂e/kWh" if candidate_ci is not None else "Not available",
-        )
-    st.caption(
-        "Life-cycle CI is available only when all active technologies have "
-        "compatible life-cycle intensity inputs; the app does not bundle them."
-    )
     st.caption(
         "**Legend:** 🟢 Green = arithmetic checks passed · "
         "🟡 Yellow = data provenance or scientific representativeness advisory · "
@@ -250,8 +255,8 @@ with tab_library:
     if provider_library is None:
         st.info(
             "The instructor has not configured a provider library yet. "
-            "The scenario and GWP screening tabs remain usable, but a searchable openLCA "
-            "provider selection requires the local catalog-extraction step."
+            "You can still define and document a supply-mix scenario. Exporting a "
+            "linked openLCA process requires an instructor-reviewed provider library."
         )
     else:
         problems = library_errors(provider_library)
@@ -400,70 +405,6 @@ with tab_library:
                 st.warning("Only high-voltage custom electricity processes can be exported.")
 
 
-with tab_impact:
-    st.subheader("Optional GWP sensitivity screening")
-    st.caption("Standalone calculator using user-supplied electricity carbon intensities. It does not require ecoinvent or change the custom openLCA process exported in Tab 3.")
-    st.write("Change only the electricity contribution; all other product-system burdens are held constant. Use the original project's *life-cycle* electricity CI, not a government direct emission factor.")
-    a,b,c = st.columns(3)
-    with a:
-        total = st.number_input("Original total GWP (kg CO₂e / functional unit)", value=1000.0, min_value=0.0, step=10.0)
-        kwh = st.number_input("Electricity use (kWh / functional unit)", value=1000.0, min_value=0.0, step=50.0)
-    with b:
-        original_lc = st.number_input("Original grid *life-cycle* CI (g CO₂e/kWh)", value=100.0, min_value=0.0)
-        option = st.radio("Alternative source information", ["Life-cycle CI", "Direct/operational CI only"], horizontal=False)
-    with c:
-        if option == "Life-cycle CI":
-            alt_lc = st.number_input("Alternative *life-cycle* CI (g CO₂e/kWh)", value=20.0, min_value=0.0)
-            alt_direct = None
-        else:
-            original_direct = st.number_input("Original grid *direct* CI (g CO₂e/kWh; SAME boundary/year)", value=50.0, min_value=0.0)
-            alt_direct = st.number_input("Alternative grid *direct* CI (g CO₂e/kWh)", value=10.0, min_value=0.0)
-            alt_lc = None
-    if option == "Direct/operational CI only":
-        st.warning("Screening approximation only: assumes unchanged non-direct life-cycle electricity impacts. It may be unsuitable for hydro-dominated scenarios with different technology mixes.")
-    try:
-        effective_alt = alt_lc if alt_lc is not None else direct_factor_correction(original_lc, original_direct, alt_direct)
-        outcome = project_sensitivity(total, kwh, original_lc, effective_alt)
-        p,q,r = st.columns(3)
-        p.metric("Original total GWP", f"{outcome['original_total_kg_co2e']:,.2f} kg")
-        q.metric("Adjusted total GWP", f"{outcome['updated_total_kg_co2e']:,.2f} kg")
-        r.metric("Relative change", f"{outcome['percent_change']:+.1f}%" if outcome['percent_change'] is not None else "N/A")
-        chart = pd.DataFrame({"GWP (kg CO₂e)":[outcome['original_total_kg_co2e'],outcome['updated_total_kg_co2e']]}, index=["Original","Alternative"])
-        st.bar_chart(chart)
-        st.caption(f"Alternative electricity factor used: {effective_alt:,.2f} g CO₂e/kWh (" + ("user-supplied lifecycle" if alt_lc is not None else "direct-factor screening correction") + "). Inputs displayed on opening are HYPOTHETICAL EXAMPLES.")
-        st.session_state['gwp_result'] = dict(outcome, scenario_type=option, original_grid_lifecycle_g=original_lc,
-                                             alternative_grid_lifecycle_g=effective_alt, electricity_kwh=kwh)
-    except ValueError as ex:
-        st.error(str(ex))
-        st.session_state['gwp_result'] = None
-
-with tab_export:
-    st.subheader("Reproducible scenario package")
-    p = st.session_state.get('scenario_payload')
-    e = st.session_state.get('scenario_errors', [])
-    w = st.session_state.get('scenario_warnings', [])
-    if not p:
-        st.info("Enter a valid scenario in Tab 1 first.")
-    elif e:
-        st.error("Fix arithmetic validation errors in Tab 1 before exporting.")
-    else:
-        ci = regional_lifecycle_ci(p)
-        report = scenario_report(p, e, w, ci)
-        template = 'technology,process_uuid,notes\n' + ''.join(f'{row["technology"]},,Select a local openLCA provider process UUID; reference output must be electricity in kWh\n' for row in p['mix'] if float(row['share'])>0)
-        b = io.BytesIO()
-        with zipfile.ZipFile(b, "w", zipfile.ZIP_DEFLATED) as z:
-            z.writestr("scenario.json", json.dumps(p, indent=2, ensure_ascii=False))
-            z.writestr("mix.csv", dump_mix_csv(p['mix']))
-            z.writestr("methodology_report.md", report)
-            z.writestr("provider_mapping_TEMPLATE.csv", template)
-            if st.session_state.get('gwp_result'):
-                z.writestr("sensitivity_result.json", json.dumps(st.session_state['gwp_result'], indent=2))
-        st.download_button("Download scenario ZIP", b.getvalue(), file_name="electricity_scenario.zip", mime="application/zip", type="primary")
-        st.download_button("Download methodology statement", report, file_name="methodology_report.md", mime="text/markdown")
-        st.write("**For openLCA:** Select providers in Tab 2, then use Tab 3 to generate a native JSON-LD ZIP. The scenario ZIP here is for documentation, not directly importable into openLCA.")
-        st.warning("Output is not a certified or validated regional LCI. A successful export does not mean a supply mix has been verified.")
-
-
 with tab_openlca:
     st.subheader("Export a custom high-voltage electricity unit process")
     st.info(
@@ -554,28 +495,90 @@ with tab_openlca:
     else:
         st.warning("Create a scenario in Tab 1 first.")
 
+    st.divider()
+    st.subheader("Scenario documentation")
+    st.caption(
+        "Save the assumptions and source record whether or not the instructor "
+        "provider library is configured. This documentation ZIP is NOT an "
+        "openLCA-importable process; use the JSON-LD ZIP above for that."
+    )
+    sc_doc = st.session_state.get("scenario_payload")
+    doc_errors = st.session_state.get("scenario_errors", [])
+    doc_warnings = st.session_state.get("scenario_warnings", [])
+    if sc_doc is None:
+        st.info("Define a supply mix in Tab 1 to download documentation.")
+    elif doc_errors:
+        st.error("Fix the input validation errors in Tab 1 before exporting documentation.")
+    else:
+        active_catalog = catalog if catalog is not None else None
+        provider_decisions = (
+            {
+                tech: {
+                    "process_id": entry["id"],
+                    "process_name": entry["name"],
+                    "location": entry.get("location", "Not specified"),
+                    "selection_reason": entry.get("selection_reason", ""),
+                }
+                for tech, entry in active_catalog["providers"].items()
+            }
+            if active_catalog is not None else {}
+        )
+        report = scenario_documentation_report(
+            sc_doc, doc_errors, doc_warnings, provider_decisions
+        )
+        archive_buffer = io.BytesIO()
+        with zipfile.ZipFile(
+            archive_buffer, "w", compression=zipfile.ZIP_DEFLATED
+        ) as archive:
+            archive.writestr(
+                "scenario.json",
+                json.dumps(sc_doc, indent=2, ensure_ascii=False),
+            )
+            archive.writestr("mix.csv", dump_supply_mix_csv(sc_doc["mix"]))
+            archive.writestr("methodology_report.md", report)
+            if provider_decisions:
+                archive.writestr(
+                    "selected_providers.json",
+                    json.dumps(provider_decisions, indent=2, ensure_ascii=False),
+                )
+        docs_left, docs_right = st.columns(2)
+        with docs_left:
+            st.download_button(
+                "Download scenario ZIP (documentation)",
+                archive_buffer.getvalue(),
+                file_name="electricity_scenario_documentation.zip",
+                mime="application/zip",
+            )
+        with docs_right:
+            st.download_button(
+                "Download methodology report",
+                report,
+                file_name="methodology_report.md",
+                mime="text/markdown",
+            )
+        st.caption(
+            "The scenario archive contains source assumptions and, when the "
+            "provider catalog is available, the selected provider metadata. "
+            "Review distribution rights before sharing catalog-derived metadata."
+        )
+
 with tab_help:
     st.markdown(
         f"**Worked example:** [IESO Northwest 2025 student tutorial]({NORTHWEST_TUTORIAL_URL}). "
-        "The client-proposed shares are generation-based and unverified."
+        "Its client-proposed generation shares are unverified."
     )
     st.markdown("""### Student workflow
-1. Select the grid boundary, year and voltage; upload verifiable supply mix shares (or edit the demonstration).
-2. Check that the shares describe electricity **consumed** by the facility; if only local generation is available, clearly state the limitation.
-3. Use the GWP tab if only a carbon intensity factor is available; **direct and lifecycle intensities are not interchangeable**.
-4. Export the scenario ZIP and attach its methodology report to the assignment.
-5. For openLCA, use **Tab 2** to search and choose approved electricity providers and **Tab 3** to export JSON-LD. The instructor first extracts and approves a provider library from the SAME restored .zolca. After import, verify all links and calculate a test product system.
 
-### Important exclusions
-- This app does not fetch live electricity data, publish an official Northwest CI, or access licensed ecoinvent content.
-- An openLCA JSON-LD ZIP contains only a new foreground process and references existing providers. It cannot work in a different database with different provider UUIDs.
-- A hypothetical low-carbon electricity mix is not a measured regional grid.
-- Simple upstream kWh scaling for losses is not a substitute for transmission/distribution infrastructure.
-- Electricity generation data, imports and exports must be reconciled before calling a regional mix consumption-based.
-- The tool is intended for preliminary attributional screening; it does not establish marginal or consequential grid emissions.
+1. **Build supply mix (Tab 1):** Choose a scenario, enter generation shares, sources, year and the generation/consumption boundary. Review share validation and scientific advisories.
+2. **Select providers (Tab 2):** Search the instructor-approved ecoinvent 3.12 cut-off provider catalog. Choose suitable **generation** processes (not pre-mixed electricity markets) and document each selection.
+3. **Export to openLCA (Tab 3):** Download the linked JSON-LD foreground unit process and the separate scenario documentation ZIP and methodology report.
+4. **Calculate in openLCA:** Restore the same class `.zolca`, import the JSON-LD ZIP, verify provider links and calculate the complete product-system LCI/LCIA. Compare the custom supply scenario with your existing grid baseline.
 
-### Primary public references
-- [IESO Data Directory](https://www.ieso.ca/en/Power-Data/Data-Directory)
-- [ECCC Fuel LCA Model methodology](https://www.canada.ca/en/environment-climate-change/services/managing-pollution/fuel-life-cycle-assessment-model/methodology.html)
-- [openLCA IPC documentation](https://greendelta.github.io/openLCA-ApiDoc/intro.html)
+### Key cautions
+
+- A regional **generation** mix is not automatically the electricity mix **consumed** at a site; imports, exports, losses and interzonal transfers can matter.
+- The tool neither retrieves official regional grid statistics nor redistributes licensed ecoinvent inventories.
+- The openLCA exporter currently supports only **ecoinvent 3.12 cut-off high-voltage** electricity; medium- and low-voltage transformation and distribution are not reconstructed automatically.
+- An instructor-approved provider catalog checks dataset references, not whether regional generation assumptions are representative.
+- **An importable ZIP is not a verified LCA result.** Examine the imported exchanges, provider UUIDs and calculated LCIA results in your own licensed openLCA database.
 """)
