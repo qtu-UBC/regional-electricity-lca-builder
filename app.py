@@ -345,7 +345,7 @@ with tab_library:
                         st.caption("Geographic proxy: explain why a non-local dataset is suitable.")
                     rationale = st.text_input(
                         f"Why did you select this {tech} provider? (required for export)",
-                        key=f"provider_rationale_{st.session_state['preset_reload_id']}_{tech}",
+                        key=f"provider_rationale_{st.session_state['preset_reload_id']}_{tech}_{uuid_choice}",
                         placeholder="E.g., Ontario location and matching run-of-river technology",
                     ).strip()
                     selected[tech] = uuid_choice
