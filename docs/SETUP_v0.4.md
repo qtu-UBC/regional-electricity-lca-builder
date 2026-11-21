@@ -7,7 +7,7 @@ The student-facing Streamlit app is organized into **four tabs**:
 3. **3 · Export to openLCA** — download the foreground **JSON-LD ZIP** plus a separate **scenario documentation ZIP** and **methodology report**. Documentation downloads are available even when a provider library has not been configured, as long as the scenario passes arithmetic validation.
 4. **Guide & cautions** — short methodology and import instructions.
 
-**GWP screening is no longer part of the student interface.** Students do not enter technology carbon-intensity values; they calculate GWP and other LCIA categories in the licensed local openLCA product system. Older sample CSVs and JSON templates have been updated to omit CI fields. The calculation helpers remain internally for backward compatibility.
+**GWP screening is no longer part of the student interface.** Students do not enter technology carbon-intensity values; they calculate GWP and other LCIA categories in the licensed local openLCA product system. Older sample CSVs and JSON templates have been updated to omit CI fields. Version 0.8 removes the obsolete screening functions and their CI-specific tests; previous code remains recoverable from Git history.
 
 The filename `SETUP_v0.4.md` remains unchanged to preserve existing links; follow the newer v0.7 instructions in this preface if older steps elsewhere in this document mention superseded tabs.
 
