@@ -72,6 +72,8 @@ def library_errors(library: Any) -> list[str]:
             errors.append(f"Entry {i} missing process name.")
         if entry.get("technology") not in TECHNOLOGIES:
             errors.append(f"Entry {i} has unknown technology.")
+        if entry.get("provider_class") is not None and entry.get("provider_class") not in PROVIDER_CLASSES:
+            errors.append(f"Entry {i} has unknown provider_class.")
         if entry.get("approved") is True:
             approved_count += 1
             for field, ref_key in (("flow_id", "flow"), ("unit_id", "unit"), ("flow_property_id", "flow_property")):
@@ -100,6 +102,87 @@ def library_errors(library: Any) -> list[str]:
             if "market" not in str(market.get("name", "")).lower():
                 errors.append(f"Approved market {i} has no market activity name.")
     return errors
+
+
+# Classification uses activity names only, so every provider still needs instructor review.
+# The fallback also supports approved v0.5 catalogs that lack a provider_class field.
+PROVIDER_CLASSES = ("generation", "cogeneration", "industrial_coproduct", "storage", "review")
+
+
+def classify_provider_name(name: str) -> str:
+    """Conservative, explainable classification of electricity-reference activities."""
+    n = (name or "").lower().strip()
+    if any(x in n for x in ("pumped storage", "pumped-storage", "pump storage")):
+        return "storage"
+    if any(x in n for x in (
+        "heat and power co-generation", "heat and power cogeneration",
+        "combined heat and power", "co-generation", "cogeneration"
+    )):
+        return "cogeneration"
+    if n.startswith(("electricity production", "electricity generation")):
+        return "generation"
+    if any(x in n for x in (
+        "pulp production", "sulfate pulp", "ethanol production",
+        "sawmill", "refinery", "chemical production",
+        "treatment of", "recycling"
+    )):
+        return "industrial_coproduct"
+    return "review"
+
+
+def provider_class(entry: Mapping[str, Any]) -> str:
+    value = entry.get("provider_class")
+    return value if value in PROVIDER_CLASSES else classify_provider_name(str(entry.get("name", "")))
+
+
+def region_preference(location: str, region: str) -> tuple[int, str]:
+    """Sort by geographic relevance, without treating proximity as scientific validity.
+
+    Handles common Canada/Ontario labels (including IESO Northwest), other
+    explicit 'Canada, Province' regions, and fallback exact/country matches.
+    """
+    loc = (location or "").casefold().strip()
+    target = (region or "").casefold().strip()
+    if not target or "hypothetical" in target or target.startswith(("demo", "custom")):
+        return 4, loc
+    if "ieso northwest" in target or "northwest ontario" in target or "ontario" in target:
+        return (0 if loc == "canada, ontario" else
+                1 if loc.startswith("canada,") else
+                2 if loc.startswith("north america") else
+                3 if loc in ("rest of world", "global") else 4, loc)
+    if target.startswith("canada,"):
+        province = target.split("|", 1)[0].split(" — ", 1)[0].strip()
+        return (0 if loc == province else
+                1 if loc.startswith("canada,") else
+                2 if loc.startswith("north america") else
+                3 if loc in ("rest of world", "global") else 4, loc)
+    # For unfamiliar region names show exact matches first, then avoid assumptions.
+    if loc and (loc == target or loc in target):
+        return 0, loc
+    if loc in ("rest of world", "global"):
+        return 3, loc
+    return 4, loc
+
+
+def ranked_candidates(library: Mapping[str, Any], technology: str, region: str,
+                      geography: str | None = None, search: str = "",
+                      include_advanced: bool = False) -> list[dict]:
+    """Instructor-approved providers, ranked geographically and by process role."""
+    options = approved_candidates(library, technology, geography)
+    query = search.casefold().strip()
+    if query:
+        options = [e for e in options if query in
+                   (str(e.get("name", "")) + " " + str(e.get("location", ""))).casefold()]
+    if not include_advanced:
+        options = [e for e in options if provider_class(e) in ("generation", "cogeneration")]
+    role_rank = {"generation": 0, "cogeneration": 1, "industrial_coproduct": 2, "storage": 3, "review": 4}
+    return sorted(options, key=lambda e: (
+        region_preference(e.get("location", ""), region)[0],
+        role_rank[provider_class(e)],
+        e.get("location", ""),
+        e.get("name", ""),
+        e.get("id", ""),
+    ))
 
 
 def approved_candidates(library: Mapping[str, Any], technology: str | None = None,
