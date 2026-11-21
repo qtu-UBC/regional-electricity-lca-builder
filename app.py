@@ -161,20 +161,47 @@ with tab_build:
                "voltage":voltage,"loss_fraction":float(losses_pct)/100,"source_url":source_url,
                "ecoinvent_version":ecoinvent_version,"mix":rows}
     errors, warnings = validate_scenario(payload)
-    left, right = st.columns(2)
-    with left:
+    st.markdown("#### Scenario validation")
+    sum_col, error_col, advisory_col, ci_col = st.columns(4)
+    with sum_col:
         st.metric("Share sum", f"{sum(float(r.get('share') or 0) for r in rows):.4f}")
-        st.metric("Validation errors", len(errors))
-    with right:
-        candidate_ci = regional_lifecycle_ci(payload) if not errors else None
-        st.metric("Computed life-cycle CI", f"{candidate_ci:,.1f} g CO₂e/kWh" if candidate_ci is not None else "Not available")
-        st.caption("Computed only if ALL technology-specific life-cycle CI inputs are entered. These are not bundled, and the value is a screening estimate.")
-    for e in errors:
-        st.error(e)
-    for w in warnings:
-        st.warning(w)
-    if not errors:
-        st.success("Mix passes arithmetic checks. Scientific representativeness still requires instructor review.")
+    with error_col:
+        st.metric("Errors", len(errors))
+    with advisory_col:
+        st.metric("Advisories", len(warnings))
+    candidate_ci = regional_lifecycle_ci(payload) if not errors else None
+    with ci_col:
+        st.metric(
+            "Life-cycle CI",
+            f"{candidate_ci:,.1f} g CO₂e/kWh" if candidate_ci is not None else "Not available",
+        )
+    st.caption(
+        "Life-cycle CI is available only when all active technologies have "
+        "compatible life-cycle intensity inputs; the app does not bundle them."
+    )
+    st.caption(
+        "**Legend:** 🟢 Green = arithmetic checks passed · "
+        "🟡 Yellow = data provenance or scientific representativeness advisory · "
+        "🔴 Red = invalid input (blocks export)."
+    )
+    if errors:
+        st.error(f"{len(errors)} input error(s) must be corrected before export.")
+        with st.expander(f"View {len(errors)} input error(s)", expanded=True):
+            for error in errors:
+                st.error(error)
+    else:
+        st.success(
+            "Arithmetic checks passed. This does not independently verify "
+            "the regional electricity mix."
+        )
+    if warnings:
+        st.warning(
+            f"{len(warnings)} advisory item(s): review the data sources and "
+            "scientific representativeness before interpreting results."
+        )
+        with st.expander(f"View {len(warnings)} validation advisories"):
+            for warning in warnings:
+                st.warning(warning)
     st.session_state["scenario_payload"] = payload
     st.session_state["scenario_errors"] = errors
     st.session_state["scenario_warnings"] = warnings
