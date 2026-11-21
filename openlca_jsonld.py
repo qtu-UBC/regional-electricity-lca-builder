@@ -173,7 +173,20 @@ def package(scenario: Mapping[str, Any], catalog: Mapping[str, Any]) -> bytes:
 
 
 def package_preview(scenario: Mapping[str, Any], catalog: Mapping[str, Any]) -> dict:
-    p = make_process(scenario,catalog)
-    return {'process_id':p['@id'],'name':p['name'], 'database':catalog['database_label'],
-            'inputs':[{'technology':r['technology'], 'kwh':r['amount'], 'provider':r['defaultProvider']['name']}
-                      for r in p['exchanges'][1:]]}
+    p = make_process(scenario, catalog)
+    active_rows = [row for row in scenario["mix"] if float(row["share"]) > 0]
+    inputs = [
+        {
+            "technology": row["technology"],
+            "kwh": exchange["amount"],
+            "provider": exchange["defaultProvider"]["name"],
+            "provider_class": catalog["providers"][row["technology"]].get("provider_class", ""),
+            "location": catalog["providers"][row["technology"]].get("location", ""),
+            "selection_reason": catalog["providers"][row["technology"]].get("selection_reason", ""),
+        }
+        for row, exchange in zip(active_rows, p["exchanges"][1:])
+    ]
+    return {
+        "process_id": p["@id"], "name": p["name"],
+        "database": catalog["database_label"], "inputs": inputs,
+    }
