@@ -15,7 +15,10 @@ import streamlit as st
 from grid_core import (TECHNOLOGIES, parse_mix_csv, validate_scenario, regional_lifecycle_ci,
                        project_sensitivity, direct_factor_correction, dump_mix_csv, scenario_report)
 from openlca_jsonld import validate_catalog, package as make_openlca_package, package_preview
-from provider_library import library_errors, approved_candidates, approved_markets, catalog_for_selection
+from provider_library import (
+    library_errors, approved_candidates, approved_markets, catalog_for_selection,
+    ranked_candidates, provider_class, region_preference,
+)
 
 # Built-in teaching examples: no licensed ecoinvent data or verified grid CI.
 PRESET_DEMO = "Demo — Hypothetical electricity mix"
@@ -75,17 +78,13 @@ if "starting_mix_rows" not in st.session_state:
 
 st.set_page_config(page_title="Regional Electricity LCA Builder", page_icon="⚡", layout="wide")
 st.title("⚡ Regional Electricity LCA Builder")
-st.caption(
-    "A student-friendly tool for regional electricity LCA modeling, "
-    "carbon intensity estimation, and sensitivity analysis."
-)
+st.caption("Create a documented regional electricity supply scenario for use in openLCA.")
 st.info(
-    "This tool supports electricity LCA scenario modeling for any "
-    "geographic location. The default electricity mix is hypothetical "
-    "and provided for demonstration purposes only. Users are responsible "
-    "for verifying their input data. The tool does not automatically "
-    "retrieve government electricity statistics or provide licensed "
-    "background LCI datasets."
+    "**Problem this tool solves:** LCI databases often lack an up-to-date electricity mix "
+    "for a specific region. Combine documented generation shares with existing "
+    "electricity providers in your licensed database, then export a custom unit "
+    "process to openLCA for impact calculations. The tool does not supply ecoinvent "
+    "data or independently verify regional grid statistics."
 )
 
 tab_build, tab_library, tab_openlca, tab_impact, tab_export, tab_help = st.tabs(["1 · Build supply mix", "2 · Select providers", "3 · Export to openLCA", "4 · GWP screening (optional)", "5 · Scenario ZIP", "Guide & cautions"])
@@ -271,37 +270,49 @@ with tab_library:
                 )
             st.divider()
             st.markdown("#### B · Generation providers for a custom electricity mix")
+            st.caption(
+                "Providers are listed by geographic relevance, then by process type. "
+                "Geographic proximity is a search aid, not proof of representativeness. "
+                "Cogeneration needs fuel/technology review; industrial co-products and "
+                "storage processes are hidden unless you enable advanced options."
+            )
             active_mix = [
-                r for r in st.session_state.get("scenario_payload", {}).get("mix", [])
-                if float(r.get("share") or 0) > 0
+                row for row in st.session_state.get("scenario_payload", {}).get("mix", [])
+                if float(row.get("share") or 0) > 0
             ]
             selected = {}
+            justifications = {}
+            region_name = st.session_state.get("scenario_payload", {}).get("region", "")
             for row in active_mix:
                 tech = row["technology"]
                 st.markdown(f"**{tech.replace('_', ' ').title()} — {float(row['share']):.2%}**")
                 tech_options = approved_candidates(provider_library, technology=tech)
                 locations = sorted({e.get("location", "Not specified") for e in tech_options})
-                filter_left, filter_right = st.columns(2)
-                with filter_left:
+                left, right = st.columns(2)
+                with left:
                     location_filter = st.selectbox(
                         f"{tech} — Geography",
                         ["All geographies"] + locations,
                         key=f"provider_geo_{tech}",
                     )
-                with filter_right:
+                with right:
                     text_filter = st.text_input(
-                        f"{tech} — Search activity", key=f"provider_search_{tech}"
-                    ).strip().lower()
-                options = approved_candidates(provider_library, technology=tech, geography=location_filter)
-                if text_filter:
-                    options = [
-                        e for e in options if text_filter in
-                        (e["name"] + " " + e.get("location", "")).lower()
-                    ]
+                        f"{tech} — Search activity", key=f"provider_search_{tech}",
+                    ).strip()
+                show_advanced = st.checkbox(
+                    f"{tech} — Include industrial co-products, storage and other unusual processes",
+                    key=f"provider_advanced_{tech}",
+                    value=False,
+                )
+                options = ranked_candidates(
+                    provider_library, tech, region_name,
+                    geography=location_filter, search=text_filter,
+                    include_advanced=show_advanced,
+                )
                 if not options:
                     st.warning(
                         f"No approved {tech} providers match the filters. "
-                        "Clear the filters or ask the instructor to review additional processes."
+                        "Clear the search or request an instructor-reviewed provider."
                     )
                     continue
                 indexed = {e["id"]: e for e in options}
@@ -310,19 +321,44 @@ with tab_library:
                     options=[None] + list(indexed),
                     format_func=lambda pid, lookup=indexed: (
                         "Select a provider..." if pid is None else
-                        f"{lookup[pid]['name']} · {lookup[pid].get('location', 'Not specified')}"
+                        f"{lookup[pid]['name']} · {lookup[pid].get('location', 'Not specified')} "
+                        f"· {provider_class(lookup[pid]).replace('_', ' ').title()}"
                     ),
-                    key=f"provider_{st.session_state['preset_reload_id']}_{tech}_{location_filter}_{text_filter}",
+                    key=f"provider_{st.session_state['preset_reload_id']}_{tech}_{location_filter}_{text_filter}_{show_advanced}",
                 )
                 if uuid_choice is not None:
+                    provider = indexed[uuid_choice]
+                    role = provider_class(provider)
+                    geography_tier = region_preference(provider.get("location", ""), region_name)[0]
+                    if role == "cogeneration":
+                        st.warning(
+                            "Cogeneration: confirm the actual fuel and heat/electricity "
+                            "allocation assumptions before selecting this provider."
+                        )
+                    elif role in ("industrial_coproduct", "storage", "review"):
+                        st.warning(
+                            "Advanced provider: this is not a standard dedicated generation "
+                            "process. Verify the electricity-reference output, co-product "
+                            "treatment and suitability with your instructor."
+                        )
+                    if geography_tier > 0 and region_name and "hypothetical" not in region_name.lower():
+                        st.caption("Geographic proxy: explain why a non-local dataset is suitable.")
+                    rationale = st.text_input(
+                        f"Why did you select this {tech} provider? (required for export)",
+                        key=f"provider_rationale_{st.session_state['preset_reload_id']}_{tech}",
+                        placeholder="E.g., Ontario location and matching run-of-river technology",
+                    ).strip()
                     selected[tech] = uuid_choice
+                    justifications[tech] = rationale
             st.session_state["selected_provider_ids"] = selected
+            st.session_state["selection_justifications"] = justifications
             st.caption(
-                f"Selected {len(selected)} of {len(active_mix)} active generation providers. "
-                "The exporter will only use explicit selections; it never guesses a matching provider."
+                f"Selected {len(selected)} of {len(active_mix)} active providers. "
+                "Nothing is selected automatically. Each choice requires a short rationale."
             )
             if st.session_state.get("scenario_payload", {}).get("voltage") != "high":
-                st.warning("The openLCA exporter currently accepts high-voltage scenarios only.")
+                st.warning("Only high-voltage custom electricity processes can be exported.")
+
 
 with tab_impact:
     st.subheader("GWP sensitivity analysis for the whole student LCA")
@@ -410,15 +446,27 @@ with tab_openlca:
                       st.session_state.get("scenario_payload", {}).get("mix", [])
                       if float(r.get("share") or 0) > 0]
             missing = [tech for tech in active if tech not in chosen]
+            missing_reasons = [
+                tech for tech in active
+                if tech in chosen and not st.session_state.get("selection_justifications", {}).get(tech, "").strip()
+            ]
             if missing:
                 st.warning(
                     "Select one approved provider for each active technology in Tab 2: "
                     + ", ".join(missing)
                 )
+            elif missing_reasons:
+                st.warning(
+                    "Document why each provider is representative before exporting: "
+                    + ", ".join(missing_reasons)
+                )
             else:
                 try:
-                    catalog = catalog_for_selection(library, chosen)
-                    st.success("Selected providers converted into a validated export catalog.")
+                    catalog = catalog_for_selection(
+                        library, chosen,
+                        st.session_state.get("selection_justifications", {}),
+                    )
+                    st.success("Provider selections and justifications are ready for export.")
                 except ValueError as exc:
                     st.error(str(exc))
     else:
