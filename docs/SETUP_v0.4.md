@@ -1,3 +1,41 @@
+# v0.6 — Provider guidance and documented choices
+
+This update is designed to prevent plausible-looking but inappropriate
+electricity provider selection.
+
+1. Students choose a documented grid scenario in **Tab 1**, then go to
+   **Tab 2 → B. Generation providers**.
+2. Only **instructor-approved** providers appear. The list places the target
+   region first (e.g. **Canada, Ontario** for the Northwest example), then
+   other Canadian regions, North America, and broader/other datasets.
+   This is an aid to finding candidates, not evidence that the closest
+   geography is the most representative technology.
+3. **Dedicated electricity generation** and **CHP / cogeneration** processes
+   are shown by default. Cogeneration datasets require checking the
+   technology, biomass fuel and how electricity/heat co-production is modeled.
+   **Industrial co-products, pumped storage and ambiguous processes** are
+   hidden by default. To inspect them, deliberately enable **advanced
+   providers** for that technology and justify why such a process is suitable.
+4. The student **must write a short explanation** for every selected provider
+   before the **Tab 3** JSON-LD export becomes available. The app records
+   this explanation together with the chosen process role, geography and
+   source in the imported custom unit process.
+5. If no appropriate provider is approved, request instructor review
+   rather than substitute an arbitrary dataset. The local 2025 IESO Northwest
+   generation shares remain client-proposed and unverified.
+
+The `provider_class` field in the newly extracted library is assigned
+**heuristically** from the process name. Instructors must check it against
+the actual reference flow and dataset documentation. Existing v0.5
+libraries without the field continue to work using the same classifier
+at selection time.
+
+The app does **not** calculate an official regional grid CI. openLCA
+calculates impacts after the exported foreground process is imported
+and linked to the shared licensed ecoinvent 3.12 cut-off `.zolca`.
+
+---
+
 # v0.5 — Electricity markets and generators are separate
 
 Version 0.5 discovers **providers of electricity product flows** directly from openLCA
