@@ -25,6 +25,9 @@ PRESET_DEMO = "Demo — Hypothetical electricity mix"
 PRESET_NORTHWEST = "IESO Northwest — 2025 proposed generation mix"
 PRESET_CUSTOM = "Create my own scenario"
 PRESET_OPTIONS = (PRESET_DEMO, PRESET_NORTHWEST, PRESET_CUSTOM)
+# Only these database configurations have a supported openLCA exporter.
+# This list denotes app support, not databases installed on students' computers.
+SUPPORTED_OPENLCA_DATABASES = ("ecoinvent 3.12, allocation cut-off",)
 NORTHWEST_MIX_FILE = Path(__file__).resolve().parent / "data" / "IESO_Northwest_2025_Generation_Scenario.csv"
 NORTHWEST_TUTORIAL_URL = (
     "https://github.com/qtu-UBC/regional-electricity-lca-builder/"
@@ -123,7 +126,16 @@ with tab_build:
         voltage = st.selectbox("Electricity delivery level", ["high", "medium", "low"], key="scenario_voltage")
         losses_pct = st.number_input("Losses to delivered kWh (%) — screening scaling", min_value=0.0, max_value=34.9, step=0.5, key="scenario_losses_pct")
     source_url = st.text_input("Primary public data source URL (required for documented scenarios)", key="scenario_source_url")
-    ecoinvent_version = st.text_input("Background LCI identifier (optional for GWP screening)", key="scenario_background")
+    ecoinvent_version = st.selectbox(
+        "Background LCI database (supported for openLCA export)",
+        options=SUPPORTED_OPENLCA_DATABASES,
+        key="scenario_background",
+        help=(
+            "Only ecoinvent 3.12 cut-off is supported by the current JSON-LD exporter. "
+            "The destination openLCA database must match the instructor's shared .zolca. "
+            "The optional GWP screening calculator does not require ecoinvent."
+        ),
+    )
 
     st.subheader("Generation / supply shares")
     reload_id = st.session_state["preset_reload_id"]
