@@ -1,40 +1,31 @@
-# Electricity scenario: DEMO — NOT IESO NORTHWEST
+# Custom electricity supply scenario: DEMO — Hypothetical electricity mix
 
-Generated: 2026-11-16
+This is an **illustrative example**, not a measured grid or verified carbon intensity.
 
 - Reference year: 2025
-- Spatial boundary: hypothetical
+- Mix boundary: hypothetical
 - Evidence status: illustrative
-- Voltage: high
-- Loss fraction (simple scaling only): 0.0
-- Main source: 
-- Background dataset: 3.12 cut-off (user's licensed database)
+- Electricity delivery level: high
+- Simplified loss fraction: 0
+- Primary source: Not documented
+- Background database: ecoinvent 3.12, allocation cut-off
 
-## Methodological cautions
+## Generation / supply shares
 
-- This is a scenario, not a verified measured regional CI unless independently validated.
-- All provider CI values, if entered, must be lifecycle CI in g CO2e per kWh at comparable boundaries.
-- The method scales input electricity for losses; it does not add new T&D infrastructure LCIs.
-- Avoid mixing operational emission factors with life-cycle emission factors.
-- A generated local supply mix may not represent electricity delivered to consumers.
+| Technology | Share | Source | Notes |
+|---|---:|---|---|
+| hydro | 80.0% | None | Hypothetical |
+| nuclear | 10.0% | None | Hypothetical |
+| natural_gas | 10.0% | None | Hypothetical |
 
-Calculated scenario CI: unavailable (technology-specific lifecycle factors not supplied)
+## Selected openLCA providers
 
-## Supply shares
+No verified provider choices are attached. Choose approved processes in the Streamlit **Select providers** tab.
 
-| Technology | Share | Lifecycle CI (g/kWh) | Source |
-|---|---:|---:|---|
-| hydro | 80.0% |  |  |
-| nuclear | 10.0% |  |  |
-| natural_gas | 10.0% |  |  |
+## Data and scientific cautions
 
-## Validation
-
-Errors:
-- None
-
-Warnings:
-- Hypothetical scenario: do not call this the measured grid mix for the named region.
-- Scenario not verified against a documented official supply mix; label as sensitivity analysis.
-- Scenario-level source URL missing.
-- At least one technology share lacks a row-level data source.
+- Shares pass arithmetic checks but do not represent a measured regional electricity mix.
+- Source URLs are missing; this scenario is illustrative only.
+- The tool does not calculate life-cycle carbon intensity. Import a linked custom process into the matching licensed openLCA database and calculate there.
+- Generation mixes may differ from electricity consumed by sites due to transfers and losses.
+- High-voltage modeling does not automatically account for lower-voltage transformation or distribution infrastructure.
