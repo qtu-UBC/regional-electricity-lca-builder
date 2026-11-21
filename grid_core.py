@@ -152,7 +152,7 @@ def dump_supply_mix_csv(rows: list[dict]) -> str:
     stream = io.StringIO()
     fields = ["technology", "share", "source_url", "notes"]
     writer = csv.DictWriter(
-        stream, fieldnames=fields, extrasaction="ignore", lineterminator="\\n"
+        stream, fieldnames=fields, extrasaction="ignore", lineterminator="\n"
     )
     writer.writeheader()
     for row in rows:
@@ -188,8 +188,8 @@ def scenario_documentation_report(payload: Mapping[str, Any], errors: list[str],
     for row in payload.get("mix", []):
         tech = str(row.get("technology", ""))
         share = float(row.get("share", 0) or 0)
-        source = str(row.get("source_url") or "Not documented").replace("|", r"\\|")
-        notes = str(row.get("notes") or "").replace("|", r"\\|")
+        source = str(row.get("source_url") or "Not documented").replace("|", r"\|")
+        notes = str(row.get("notes") or "").replace("|", r"\|")
         lines.append(f"| {tech} | {share:.4%} | {source} | {notes} |")
     lines += [
         "",
@@ -231,7 +231,7 @@ def scenario_documentation_report(payload: Mapping[str, Any], errors: list[str],
         "- Simple loss scaling does not represent electricity transmission or distribution infrastructure.",
         "",
     ]
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
 
 
