@@ -2,13 +2,36 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from grid_core import validate_scenario, regional_lifecycle_ci, project_sensitivity, direct_factor_correction, parse_mix_csv
+from grid_core import (validate_scenario, regional_lifecycle_ci, project_sensitivity, direct_factor_correction, parse_mix_csv, dump_supply_mix_csv, scenario_documentation_report)
 from openlca_bridge import plan
 
 BASE = {"region":"classroom test", "year":2025,"boundary":"hypothetical", "evidence_status":"illustrative", "voltage":"high", "loss_fraction":0.05,
         "source_url":"", "mix":[{"technology":"hydro", "share":0.8, "ci_lifecycle_g_per_kwh":10}, {"technology":"natural_gas", "share":0.2,"ci_lifecycle_g_per_kwh":400}]}
 
 class GridCoreTest(unittest.TestCase):
+    def test_foreground_documentation_has_no_gwp_factor_columns(self):
+        rows = [
+            {"technology": "hydro", "share": 0.8, "source_url": "https://example.org/hydro", "notes": "Example"},
+            {"technology": "wind", "share": 0.2, "source_url": "", "notes": "Example"},
+        ]
+        csv_text = dump_supply_mix_csv(rows)
+        self.assertEqual(csv_text.splitlines()[0], "technology,share,source_url,notes")
+        self.assertNotIn("ci_lifecycle", csv_text.lower())
+        scenario = dict(BASE, mix=rows)
+        report = scenario_documentation_report(
+            scenario, [], ["Generator shares are unverified."],
+            {"hydro": {
+                "process_id": "test-id",
+                "process_name": "TEST hydro",
+                "location": "Canada, Ontario",
+                "selection_reason": "Matching technology and geography",
+            }},
+        )
+        self.assertIn("Matching technology and geography", report)
+        self.assertIn("Generator shares are unverified.", report)
+        self.assertNotIn("Calculated scenario CI:", report)
+        self.assertIn("\\n## Generation / supply shares\\n", report)
+
     def test_mix_passes(self):
         errors, warnings = validate_scenario(BASE)
         self.assertEqual(errors, [])
