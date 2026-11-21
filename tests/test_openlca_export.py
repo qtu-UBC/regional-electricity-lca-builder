@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace as Obj
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
-from openlca_jsonld import validate_catalog, make_process, package
+from openlca_jsonld import validate_catalog, make_process, package, package_preview
 from instructor_catalog import make_catalog
 
 
@@ -53,6 +53,18 @@ class CatalogChecks(unittest.TestCase):
         self.assertFalse(p['exchanges'][0]['isInput'])
         self.assertTrue(p['exchanges'][0]['isQuantitativeReference'])
         self.assertEqual(p['exchanges'][0]['flow']['@id'],p['exchanges'][2]['flow']['@id'])
+
+    def test_preview_has_technology_and_selection_reason(self):
+        sc, cat = sample()
+        cat["providers"]["hydro"]["selection_reason"] = "Reservoir hydro from the relevant region"
+        cat["providers"]["hydro"]["provider_class"] = "generation"
+        cat["providers"]["hydro"]["location"] = "Canada, Ontario"
+        preview = package_preview(sc, cat)
+        self.assertEqual(preview["inputs"][0]["technology"], "hydro")
+        self.assertEqual(preview["inputs"][0]["selection_reason"],
+                         "Reservoir hydro from the relevant region")
+        process = make_process(sc, cat)
+        self.assertIn("selection_reason=Reservoir hydro", process["exchanges"][1]["description"])
 
     def test_zip_native_schema_layout(self):
         sc,cat=sample(); b=package(sc,cat)
