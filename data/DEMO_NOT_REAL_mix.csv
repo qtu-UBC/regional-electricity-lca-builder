@@ -1,4 +1,4 @@
-technology,share,ci_lifecycle_g_per_kwh,source_url,notes
-hydro,0.80,,,HYPOTHETICAL DEMONSTRATION ONLY — NOT IESO NORTHWEST
-nuclear,0.10,,,Made-up shares for classroom demonstration
-natural_gas,0.10,,,Not measured or official data
+technology,share,source_url,notes
+hydro,0.80,,HYPOTHETICAL DEMONSTRATION ONLY — NOT IESO NORTHWEST
+nuclear,0.10,,Made-up shares for classroom demonstration
+natural_gas,0.10,,Not measured or official data
