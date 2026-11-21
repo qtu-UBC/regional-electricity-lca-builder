@@ -91,7 +91,7 @@ st.info(
     "verify regional grid statistics."
 )
 
-tab_build, tab_library, tab_openlca, tab_impact, tab_export, tab_help = st.tabs(["1 · Build supply mix", "2 · Select providers", "3 · Export to openLCA", "4 · GWP screening (optional)", "5 · Scenario ZIP", "Guide & cautions"])
+tab_build, tab_library, tab_openlca, tab_impact, tab_export, tab_help = st.tabs(["1 · Build supply mix", "2 · Select providers", "3 · Export to openLCA", "Optional · GWP screening", "5 · Scenario ZIP", "Guide & cautions"])
 
 with tab_build:
     st.subheader("Start with an example or create your own")
@@ -401,7 +401,8 @@ with tab_library:
 
 
 with tab_impact:
-    st.subheader("GWP sensitivity analysis for the whole student LCA")
+    st.subheader("Optional GWP sensitivity screening")
+    st.caption("Standalone calculator using user-supplied electricity carbon intensities. It does not require ecoinvent or change the custom openLCA process exported in Tab 3.")
     st.write("Change only the electricity contribution; all other product-system burdens are held constant. Use the original project's *life-cycle* electricity CI, not a government direct emission factor.")
     a,b,c = st.columns(3)
     with a:
