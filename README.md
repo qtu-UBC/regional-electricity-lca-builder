@@ -56,7 +56,7 @@ The catalog's UUIDs are tied to the particular converted openLCA database. Diffe
 | `data/` | Illustrative mixes and templates; no licensed LCI |
 | `tests/` | Python validation, exporter checks and Streamlit startup smoke test |
 
-**Historical resource note:** The workbook `Electricity_Scenario_Student_Template.xlsx` and older Word tutorial were created for earlier versions that also included carbon-factor screening. Use the up-to-date Markdown tutorial and the live app workflow for v0.7.
+**Current student materials (v0.7):** The [Word Northwest tutorial](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.docx), [Markdown tutorial](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md), and [Excel scenario workbook](Electricity_Scenario_Student_Template.xlsx) all follow the four-tab openLCA unit-process workflow. The workbook includes a formula-checked Northwest example, an editable supply mix, a provider-selection log, an import checklist and source notes. No GWP-screening exercises are included.
 
 ## Deployment and testing
 
