@@ -1,7 +1,37 @@
-# Regional Electricity LCA Builder — v0.5
+# Regional Electricity LCA Builder — v0.6
 
 **LCA Clinic teaching tool, updated 20 November 2026.** A student-facing Streamlit calculator plus a conditional **native openLCA 2 JSON-LD foreground-process ZIP** exporter. For preliminary attributional LCA and GWP sensitivity work, not a regulator-approved, certified, or measured regional grid model.
 
+
+## What problem does this tool solve?
+
+Standard LCI databases may lack up-to-date, site-representative electricity mixes.
+Students enter sourced generation shares, select compatible existing electricity
+generation processes, and export a **custom high-voltage electricity unit process**
+to openLCA. **openLCA performs the LCI and LCIA calculation**, not the web app.
+The tool does not generate missing regional grid statistics or certify their accuracy.
+
+## New in v0.6: defensible provider selection
+
+- For each generation technology, approved providers are ranked **by relevant geography**
+  (e.g., Ontario first for IESO Northwest), followed by process category.
+  Ranking is a search convenience, not evidence of representativeness.
+- **Dedicated electricity generation** and **heat/power cogeneration** are visible
+  by default. **Industrial electricity co-products, pumped storage and unusual
+  activities** are hidden unless students deliberately enable advanced options.
+- Each selected provider requires a short **rationale** (technology and geography)
+  before generating the openLCA ZIP. The rationale, process role and location
+  are recorded in the imported electricity process's input exchange metadata.
+- The catalog remains instructor-reviewed. If no approved suitable provider
+  exists, students should stop, not pick an unrelated technology just to export.
+- Classification is heuristic and never substitutes for inspecting the actual
+  inventory and reference-product assumptions.
+
+**Instructor:** Existing v0.5 JSON libraries still work through name-based
+classification, but regenerating with `extract_provider_library.py` adds an
+explicit `provider_class` field. All extracted entries start unapproved.
+Review geographies, cogeneration allocation and whether sharing metadata in
+Streamlit is allowed.
 
 ## New in v0.5: separate electricity markets and generator providers
 
