@@ -24,6 +24,15 @@ class StreamlitStartupTests(unittest.TestCase):
         self.assertFalse(at.exception, [
             getattr(item, "message", repr(item)) for item in at.exception
         ])
+        database_selectors = [
+            widget for widget in at.selectbox
+            if widget.label == "Background LCI database (supported for openLCA export)"
+        ]
+        self.assertEqual(len(database_selectors), 1)
+        self.assertEqual(
+            list(database_selectors[0].options),
+            ["ecoinvent 3.12, allocation cut-off"],
+        )
 
 
 if __name__ == "__main__":
