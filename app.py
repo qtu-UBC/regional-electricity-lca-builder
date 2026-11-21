@@ -43,14 +43,14 @@ def preset_mix_rows(preset):
         return parse_mix_csv(NORTHWEST_MIX_FILE.read_text(encoding="utf-8-sig"))
     if preset == PRESET_DEMO:
         return [
-            {"technology": "hydro", "share": 0.8, "ci_lifecycle_g_per_kwh": None,
+            {"technology": "hydro", "share": 0.8,
              "source_url": "", "notes": "HYPOTHETICAL demonstration value"},
-            {"technology": "nuclear", "share": 0.1, "ci_lifecycle_g_per_kwh": None,
+            {"technology": "nuclear", "share": 0.1,
              "source_url": "", "notes": "HYPOTHETICAL demonstration value"},
-            {"technology": "natural_gas", "share": 0.1, "ci_lifecycle_g_per_kwh": None,
+            {"technology": "natural_gas", "share": 0.1,
              "source_url": "", "notes": "HYPOTHETICAL demonstration value"},
         ]
-    return [{"technology": "hydro", "share": 0.0, "ci_lifecycle_g_per_kwh": None,
+    return [{"technology": "hydro", "share": 0.0,
              "source_url": "", "notes": "Replace with your own documented generation shares"}]
 
 
