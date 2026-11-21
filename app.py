@@ -83,8 +83,9 @@ st.info(
     "**Problem this tool solves:** LCI databases often lack an up-to-date electricity mix "
     "for a specific region. Combine documented generation shares with existing "
     "electricity providers in your licensed database, then export a custom unit "
-    "process to openLCA for impact calculations. The tool does not supply ecoinvent "
-    "data or independently verify regional grid statistics."
+    "process to openLCA for impact calculations.\n\n"
+    "**Caution:** The tool does not supply ecoinvent data or independently "
+    "verify regional grid statistics."
 )
 
 tab_build, tab_library, tab_openlca, tab_impact, tab_export, tab_help = st.tabs(["1 · Build supply mix", "2 · Select providers", "3 · Export to openLCA", "4 · GWP screening (optional)", "5 · Scenario ZIP", "Guide & cautions"])
