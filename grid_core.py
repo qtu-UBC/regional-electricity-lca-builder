@@ -146,6 +146,95 @@ def direct_factor_correction(baseline_lifecycle_g: float,
     return baseline_lifecycle_g + (alternate_direct_g - baseline_direct_g)
 
 
+
+def dump_supply_mix_csv(rows: list[dict]) -> str:
+    """CSV of the inputs needed to model electricity providers in openLCA."""
+    stream = io.StringIO()
+    fields = ["technology", "share", "source_url", "notes"]
+    writer = csv.DictWriter(
+        stream, fieldnames=fields, extrasaction="ignore", lineterminator="\\n"
+    )
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({
+            key: "" if row.get(key) is None else row.get(key)
+            for key in fields
+        })
+    return stream.getvalue()
+
+
+def scenario_documentation_report(payload: Mapping[str, Any], errors: list[str],
+                                  warnings: list[str],
+                                  selected_providers: Mapping[str, Any] | None = None) -> str:
+    """Document modeling assumptions without estimating life-cycle carbon intensity."""
+    from datetime import date
+    lines = [
+        f"# Custom electricity supply scenario: {payload.get('region', 'Unknown')}",
+        "",
+        f"- Generated: {date.today().isoformat()}",
+        f"- Reference year: {payload.get('year')}",
+        f"- Mix boundary: {payload.get('boundary')}",
+        f"- Evidence status: {payload.get('evidence_status')}",
+        f"- Electricity delivery level: {payload.get('voltage')}",
+        f"- Simplified loss fraction: {payload.get('loss_fraction')}",
+        f"- Primary source: {payload.get('source_url') or 'Not documented'}",
+        f"- Background database: {payload.get('ecoinvent_version') or 'Not specified'}",
+        "",
+        "## Generation / supply shares",
+        "",
+        "| Technology | Share | Source URL | Notes |",
+        "|---|---:|---|---|",
+    ]
+    for row in payload.get("mix", []):
+        tech = str(row.get("technology", ""))
+        share = float(row.get("share", 0) or 0)
+        source = str(row.get("source_url") or "Not documented").replace("|", r"\\|")
+        notes = str(row.get("notes") or "").replace("|", r"\\|")
+        lines.append(f"| {tech} | {share:.4%} | {source} | {notes} |")
+    lines += [
+        "",
+        "## Selected openLCA providers",
+        "",
+    ]
+    if selected_providers:
+        for tech, entry in selected_providers.items():
+            lines += [
+                f"### {tech}",
+                f"- Process: {entry.get('process_name', 'Not specified')}",
+                f"- Process UUID: {entry.get('process_id', 'Not specified')}",
+                f"- Geography: {entry.get('location', 'Not specified')}",
+                f"- Selection rationale: {entry.get('selection_reason') or 'Not documented'}",
+                "",
+            ]
+    else:
+        lines += [
+            "No validated provider choices accompanied this export.",
+            "Choose providers in Tab 2 before exporting the linked openLCA process.",
+            "",
+        ]
+    lines += [
+        "## Validation and representativeness",
+        "",
+        f"- Arithmetic errors: {len(errors)}",
+    ]
+    lines += [f"  - {error}" for error in errors] or ["  - None"]
+    lines += [f"- Scientific/data advisories: {len(warnings)}"]
+    lines += [f"  - {warning}" for warning in warnings] or ["  - None"]
+    lines += [
+        "",
+        "## Methodological cautions",
+        "",
+        "- Regional generation shares may differ from electricity consumed due to transfers and imports.",
+        "- This document does not establish an independently verified or certified electricity mix.",
+        "- Imported provider references require testing against the matching licensed openLCA database.",
+        "- This scenario does not calculate an electricity carbon intensity or life-cycle impacts.",
+        "- Simple loss scaling does not represent electricity transmission or distribution infrastructure.",
+        "",
+    ]
+    return "\\n".join(lines)
+
+
+
 def dump_mix_csv(rows: list[dict]) -> str:
     s = io.StringIO()
     fields = ["technology", "share", "ci_lifecycle_g_per_kwh", "source_url", "notes"]
