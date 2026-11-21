@@ -14,7 +14,7 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 
-from provider_library import TECHNOLOGIES
+from provider_library import TECHNOLOGIES, classify_provider_name
 
 
 def guess_technology(name: str) -> str:
@@ -198,6 +198,7 @@ def extract_flow_based_library(flow_descriptors, providers_of, fetch, database_l
                 "id": str(proc.id), "name": str(proc.name or ""),
                 "location": str(getattr(location, "name", "") or "Not specified"),
                 "technology": guess_technology(str(proc.name or "")) if kind == "generation" else "other",
+                "provider_class": classify_provider_name(str(proc.name or "")) if kind == "generation" else "review",
                 "voltage": product_voltage,
                 "kind": kind,
                 "flow_id": key[0], "flow_property_id": key[1], "unit_id": key[2],
