@@ -30,7 +30,7 @@ class GridCoreTest(unittest.TestCase):
         self.assertIn("Matching technology and geography", report)
         self.assertIn("Generator shares are unverified.", report)
         self.assertNotIn("Calculated scenario CI:", report)
-        self.assertIn("\\n## Generation / supply shares\\n", report)
+        self.assertIn("\n## Generation / supply shares\n", report)
 
     def test_mix_passes(self):
         errors, warnings = validate_scenario(BASE)
