@@ -205,8 +205,9 @@ def approved_markets(library: Mapping[str, Any], voltage: str | None = None) -> 
     return sorted(markets, key=lambda m: (m.get("location", ""), m.get("name", "")))
 
 
-def catalog_for_selection(library: Mapping[str, Any], selected: Mapping[str, str]) -> dict:
-    """Build the v0.2 exporter-compatible catalog from explicit student choices."""
+def catalog_for_selection(library: Mapping[str, Any], selected: Mapping[str, str],
+                          rationales: Mapping[str, str] | None = None) -> dict:
+    """Create the exporter catalog with chosen provider metadata and explanations."""
     errors = library_errors(library)
     if errors:
         raise ValueError("Invalid provider library: " + "; ".join(errors))
@@ -219,6 +220,8 @@ def catalog_for_selection(library: Mapping[str, Any], selected: Mapping[str, str
         entry = approved.get(pid)
         if not entry:
             raise ValueError(f"Provider {pid} for {technology} is absent or not approved.")
+        if entry.get("technology") != technology:
+            raise ValueError(f"Provider {pid} was reviewed for {entry.get('technology')}, not {technology}.")
         if pid in used_ids:
             raise ValueError("Do not assign the same provider to multiple technology shares; combine them instead.")
         used_ids.add(pid)
@@ -228,6 +231,9 @@ def catalog_for_selection(library: Mapping[str, Any], selected: Mapping[str, str
             "flow_id": entry["flow_id"],
             "unit_id": entry["unit_id"],
             "flow_property_id": entry["flow_property_id"],
+            "provider_class": provider_class(entry),
+            "location": entry.get("location", "Not specified"),
+            "selection_reason": str((rationales or {}).get(technology, "")).strip()[:500],
         }
     return {
         "catalog_version": 1,
