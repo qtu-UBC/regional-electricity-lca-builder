@@ -1,3 +1,18 @@
+# Current student interface (v0.7)
+
+The student-facing Streamlit app is organized into **four tabs**:
+
+1. **1 · Build supply mix** — define the regional mix and check arithmetic/provenance.
+2. **2 · Select providers** — browse existing markets for the baseline and choose approved generator processes for the custom mix.
+3. **3 · Export to openLCA** — download the foreground **JSON-LD ZIP** plus a separate **scenario documentation ZIP** and **methodology report**. Documentation downloads are available even when a provider library has not been configured, as long as the scenario passes arithmetic validation.
+4. **Guide & cautions** — short methodology and import instructions.
+
+**GWP screening is no longer part of the student interface.** Students do not enter technology carbon-intensity values; they calculate GWP and other LCIA categories in the licensed local openLCA product system. Older sample CSVs and JSON templates have been updated to omit CI fields. The calculation helpers remain internally for backward compatibility.
+
+The filename `SETUP_v0.4.md` remains unchanged to preserve existing links; follow the newer v0.7 instructions in this preface if older steps elsewhere in this document mention superseded tabs.
+
+---
+
 # v0.6 — Provider guidance and documented choices
 
 This update is designed to prevent plausible-looking but inappropriate
