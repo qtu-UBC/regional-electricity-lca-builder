@@ -1,4 +1,4 @@
-# Regional Electricity LCA Builder — v0.7
+# Regional Electricity LCA Builder — v0.8
 
 A student-friendly Streamlit tool for constructing a documented **regional electricity supply scenario** and exporting a **custom high-voltage foreground unit process** for openLCA 2. The current exporter targets **ecoinvent 3.12 cut-off**, using an instructor-approved provider library extracted from the class's shared `.zolca`.
 
@@ -47,7 +47,7 @@ The catalog's UUIDs are tied to the particular converted openLCA database. Diffe
 | File | Role |
 |---|---|
 | `app.py` | Four-tab Streamlit UI and two distinct export types |
-| `grid_core.py` | Scenario validation and documentation; legacy carbon-factor helpers are retained internally but not shown in the student UI |
+| `grid_core.py` | Scenario-share validation, CSV parsing, methodology reports and documentation exports; obsolete carbon-factor calculations have been removed |
 | `provider_library.py` | Instructor approval guards, region ranking, generator classification and explicit provider selections |
 | `extract_provider_library.py` | Read-only IPC discovery of reference-electricity suppliers from restored local `.zolca` |
 | `openlca_jsonld.py` | Native openLCA JSON-LD foreground process ZIP |
