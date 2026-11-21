@@ -1,15 +1,30 @@
 {
-  "region": "DEMO — NOT IESO NORTHWEST",
+  "region": "DEMO — Hypothetical electricity mix",
   "year": 2025,
   "boundary": "hypothetical",
   "evidence_status": "illustrative",
   "voltage": "high",
-  "loss_fraction": 0.0,
-  "ecoinvent_version": "3.12 cut-off (user's licensed database)",
+  "loss_fraction": 0,
+  "ecoinvent_version": "ecoinvent 3.12, allocation cut-off",
   "source_url": "",
   "mix": [
-    {"technology": "hydro", "share": 0.8, "ci_lifecycle_g_per_kwh": null, "source_url": "", "notes": "Hypothetical"},
-    {"technology": "nuclear", "share": 0.1, "ci_lifecycle_g_per_kwh": null, "source_url": "", "notes": "Hypothetical"},
-    {"technology": "natural_gas", "share": 0.1, "ci_lifecycle_g_per_kwh": null, "source_url": "", "notes": "Hypothetical"}
+    {
+      "technology": "hydro",
+      "share": 0.8,
+      "source_url": "",
+      "notes": "Hypothetical"
+    },
+    {
+      "technology": "nuclear",
+      "share": 0.1,
+      "source_url": "",
+      "notes": "Hypothetical"
+    },
+    {
+      "technology": "natural_gas",
+      "share": 0.1,
+      "source_url": "",
+      "notes": "Hypothetical"
+    }
   ]
 }
