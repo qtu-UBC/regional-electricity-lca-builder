@@ -115,7 +115,13 @@ def make_process(scenario: Mapping[str, Any], catalog: Mapping[str, Any]) -> dic
         'mix': [{'technology':r['technology'],'share':round(float(r['share']),12)} for r in scenario['mix'] if float(r['share'])>0],
         'database': catalog['database_label'],
         'catalog_date': catalog['reviewed_date'],
-        'providers': {r['technology']: catalog['providers'][r['technology']]['id'] for r in scenario['mix'] if float(r['share'])>0},
+        'providers': {
+            r['technology']: {
+                'id': catalog['providers'][r['technology']]['id'],
+                'reason': catalog['providers'][r['technology']].get('selection_reason', ''),
+            }
+            for r in scenario['mix'] if float(r['share'])>0
+        },
     }
     digest = hashlib.sha256(json.dumps(relevant, sort_keys=True, ensure_ascii=False).encode('utf-8')).hexdigest()
     uid = str(uuid.uuid5(NAMESPACE, digest))
@@ -137,7 +143,13 @@ def make_process(scenario: Mapping[str, Any], catalog: Mapping[str, Any]) -> dic
             'isAvoidedProduct':False, 'amount':amount, 'flow':_ref('Flow',ref['flow']),
             'flowProperty':_ref('FlowProperty',ref['flow_property']), 'unit':_ref('Unit',ref['unit']),
             'defaultProvider':_ref('Process', supplier),
-            'description':f"{row['technology']} share={float(row['share']):.8f}; source={row.get('source_url') or scenario.get('source_url') or 'UNSPECIFIED'}"
+            'description':(
+                f"{row['technology']} share={float(row['share']):.8f}; "
+                f"source={row.get('source_url') or scenario.get('source_url') or 'UNSPECIFIED'}; "
+                f"provider_class={supplier.get('provider_class', 'not classified')}; "
+                f"provider_location={supplier.get('location', 'not specified')}; "
+                f"selection_reason={supplier.get('selection_reason') or 'NOT DOCUMENTED'}"
+            )
         })
     desc = (f"LCA Clinic student foreground electricity scenario. Region={scenario['region']}; year={scenario['year']}; "
             f"data boundary={scenario['boundary']}; evidence={scenario['evidence_status']}; "
