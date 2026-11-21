@@ -8,7 +8,10 @@ from types import SimpleNamespace as NS
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from extract_provider_library import extract_library, extract_flow_based_library, electricity_voltage, guess_technology, is_candidate_name
-from provider_library import library_errors, approved_candidates, catalog_for_selection
+from provider_library import (
+    library_errors, approved_candidates, catalog_for_selection, ranked_candidates,
+    classify_provider_name, provider_class, region_preference,
+)
 from openlca_jsonld import make_process
 
 
@@ -174,6 +177,62 @@ class ProviderLibraryTests(unittest.TestCase):
         self.assertTrue(all(not e["approved"] for e in library["entries"]))
 
 
+
+
+    def test_provider_classes_and_legacy_fallback(self):
+        self.assertEqual(classify_provider_name("electricity production, hydro, run-of-river"), "generation")
+        self.assertEqual(classify_provider_name(
+            "heat and power co-generation, wood chips, 6667 kW"), "cogeneration")
+        self.assertEqual(classify_provider_name(
+            "sulfate pulp production, from softwood, unbleached"), "industrial_coproduct")
+        self.assertEqual(classify_provider_name(
+            "electricity production, hydro, pumped storage"), "storage")
+        self.assertEqual(provider_class({"name": "ethanol production from wood"}),
+                         "industrial_coproduct")
+
+    def test_geo_ranking_and_advanced_visibility(self):
+        library = sample_library()
+        library["approved"] = True
+        hydro = library["entries"][0]
+        hydro["approved"] = True
+        hydro["location"] = "Canada, Ontario"
+        def extra(i, name, location):
+            e = copy.deepcopy(hydro)
+            e["id"] = uid(i)
+            e["name"] = name
+            e["location"] = location
+            return e
+        library["entries"].extend([
+            extra(250, "electricity production, hydro, reservoir", "Canada, Quebec"),
+            extra(251, "electricity production, hydro, run-of-river", "Rest of World"),
+            extra(252, "electricity production, hydro, pumped storage", "Canada, Ontario"),
+        ])
+        ranked = ranked_candidates(library, "hydro", "IESO Northwest — 2025")
+        self.assertEqual(ranked[0]["location"], "Canada, Ontario")
+        self.assertEqual(len(ranked), 3)
+        self.assertEqual(len(ranked_candidates(
+            library, "hydro", "IESO Northwest — 2025", include_advanced=True)), 4)
+        self.assertLess(region_preference("Canada, Ontario", "IESO Northwest")[0],
+                        region_preference("Canada, Quebec", "IESO Northwest")[0])
+        self.assertFalse(library_errors(library), library_errors(library))
+
+    def test_student_rationale_preserved_and_cross_technology_rejected(self):
+        library = sample_library()
+        library["approved"] = True
+        for e in library["entries"]:
+            e["approved"] = True
+        hydro = approved_candidates(library, "hydro")[0]
+        wind = approved_candidates(library, "wind")[0]
+        with self.assertRaises(ValueError):
+            catalog_for_selection(library, {"hydro": wind["id"]})
+        catalog = catalog_for_selection(
+            library,
+            {"hydro": hydro["id"], "wind": wind["id"]},
+            {"hydro": "Ontario geography and matching hydro technology", "wind": "Onshore turbine"},
+        )
+        self.assertEqual(catalog["providers"]["hydro"]["selection_reason"],
+                         "Ontario geography and matching hydro technology")
+        self.assertEqual(catalog["providers"]["hydro"]["provider_class"], "generation")
 
 
 if __name__ == "__main__":
