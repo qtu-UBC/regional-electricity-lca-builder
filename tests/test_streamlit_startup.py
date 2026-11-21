@@ -33,6 +33,17 @@ class StreamlitStartupTests(unittest.TestCase):
             list(database_selectors[0].options),
             ["ecoinvent 3.12, allocation cut-off"],
         )
+        self.assertEqual(
+            [tab.label for tab in at.tabs],
+            ["1 · Build supply mix", "2 · Select providers",
+             "3 · Export to openLCA", "Guide & cautions"],
+        )
+        self.assertFalse(any("GWP" in tab.label for tab in at.tabs))
+        self.assertFalse(any(metric.label == "Life-cycle CI" for metric in at.metric))
+        self.assertEqual(
+            len([w for w in at.get("data_editor")]),
+            1,
+        )
 
 
 if __name__ == "__main__":
