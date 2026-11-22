@@ -253,5 +253,84 @@ class MVAdapterTests(unittest.TestCase):
                             "Canada, Alberta", cat["database_label"], "Course instructor")
 
 
+    def test_extractor_accepts_formatted_openlca_titles_and_ca_on_code(self):
+        sc, cat, ad = sample()
+
+        def convert_entry(row):
+            return Obj(
+                flow=Obj(**row["flow"]), unit=Obj(**row["unit"]),
+                flow_property=Obj(**row["flow_property"]),
+                amount=row["amount"], is_input=row["is_input"],
+                is_quantitative_reference=row["is_quantitative_reference"],
+                is_avoided_product=row["is_avoided_product"],
+                default_provider=Obj(**row["provider"]) if row["provider"] else None,
+                description="",
+            )
+
+        processes = {
+            p["id"]: Obj(
+                id=p["id"], name=p["name"], location=Obj(name="CA-ON"),
+                exchanges=[convert_entry(x) for x in p["exchanges"]],
+            )
+            for p in ad["processes"].values()
+        }
+        formatted = [
+            Obj(
+                id=p["id"],
+                name=f"{p['name']} | electricity, "
+                     f"{'high' if role == 'hv_market' else 'medium'} voltage "
+                     f"| Cutoff, U - CA-ON"
+            )
+            for role, p in ad["processes"].items()
+        ]
+        result = extract_adapter(
+            formatted, lambda i: processes[i], "Canada, Ontario",
+            cat["database_label"], "Instructor",
+        )
+        self.assertEqual(
+            result["processes"]["transformation"]["exchanges"][1]["amount"], 1.00482
+        )
+        self.assertEqual(
+            result["processes"]["hv_market"]["id"], ad["processes"]["hv_market"]["id"]
+        )
+
+    def test_extractor_uses_explicit_code_for_other_regions(self):
+        sc, cat, ad = sample()
+        processes = {
+            p["id"]: Obj(
+                id=p["id"], name=p["name"], location=Obj(name="CA-AB"),
+                exchanges=[],
+            )
+            for p in ad["processes"].values()
+        }
+        descriptors = [
+            Obj(id=p["id"], name=p["name"] + " | electricity, medium voltage | Cutoff, U - CA-AB")
+            for p in ad["processes"].values()
+        ]
+        with self.assertRaisesRegex(ValueError, "Candidate descriptors"):
+            extract_adapter(descriptors, lambda i: processes[i],
+                            "Canada, Alberta", cat["database_label"], "Instructor")
+        result = extract_adapter(descriptors, lambda i: processes[i],
+                                 "Canada, Alberta", cat["database_label"], "Instructor",
+                                 region_code="CA-AB")
+        self.assertEqual(result["region"], "Canada, Alberta")
+
+    def test_extractor_fails_closed_on_ambiguous_formatted_titles(self):
+        sc, cat, ad = sample()
+        original = ad["processes"]["hv_market"]
+        descriptors = [
+            Obj(id=original["id"], name=original["name"] + " | electricity, high voltage | Cutoff, U - CA-ON"),
+            Obj(id=uid(501), name=original["name"] + " | electricity, high voltage | Cutoff, U - CA-ON"),
+        ]
+        processes = {
+            d.id: Obj(id=d.id, name=original["name"],
+                      location=Obj(name="Canada, Ontario"), exchanges=[])
+            for d in descriptors
+        }
+        with self.assertRaisesRegex(ValueError, "found 2"):
+            extract_adapter(descriptors, lambda i: processes[i], "Canada, Ontario",
+                            cat["database_label"], "Instructor")
+
+
 if __name__ == "__main__":
     unittest.main()

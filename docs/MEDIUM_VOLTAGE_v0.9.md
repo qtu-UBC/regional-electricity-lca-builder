@@ -69,6 +69,25 @@ mv_adapter_*.json, but check staged files yourself.
 If the region has multiple matching activities or uses another structure,
 the extractor refuses to guess. Inspect the source market in openLCA.
 
+**Troubleshooting an activity-name/geography lookup failure:** Some imported
+openLCA databases expose formatted activity titles through IPC, such as
+`market for electricity, high voltage | electricity, high voltage | Cutoff, U - CA-ON`,
+and may use a short geography code rather than `Canada, Ontario`. The extractor
+accepts that formatted title and recognizes the Ontario `CA-ON` alias.
+For other regions, specify the exact short code shown in your database:
+
+    python extract_mv_adapter.py \
+      --region "Canada, Alberta" \
+      --region-code "CA-AB" \
+      --database-label "ecoinvent 3.12 cut-off (class shared .zolca)" \
+      --reviewer "Course instructor" \
+      --out mv_adapter_REVIEW_LOCAL.json
+
+If the lookup still fails, inspect the **Candidate descriptors** printed in
+the error, confirm the active .zolca and IPC port, and do not approve or guess
+a supplier. This lookup correction does not establish successful MV network
+validation; subsequent approval and LCIA replication are still mandatory.
+
 ## 3. Instructor review and approval
 
 The generated adapter has approved=false. Confirm in openLCA:
