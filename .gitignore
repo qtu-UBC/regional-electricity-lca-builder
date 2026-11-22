@@ -19,4 +19,4 @@ provider_library_*.json
 # Temporary files
 *.log
 *.tmp
-.ipynb_checkpoints/
+.ipynb_checkpoints/mv_adapter_*.json

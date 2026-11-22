@@ -17,6 +17,7 @@ from grid_core import (
     scenario_documentation_report,
 )
 from openlca_jsonld import validate_catalog, package as make_openlca_package, package_preview
+from mv_market import validate_mv_adapter, mv_package, mv_preview
 from provider_library import (
     library_errors, approved_candidates, approved_markets, catalog_for_selection,
     ranked_candidates, provider_class, region_preference,
@@ -52,6 +53,12 @@ def preset_mix_rows(preset):
         ]
     return [{"technology": "hydro", "share": 0.0,
              "source_url": "", "notes": "Replace with your own documented generation shares"}]
+
+
+def on_voltage_change():
+    """Avoid double-counting grid losses if an MV adapter will provide them."""
+    if st.session_state.get("scenario_voltage") == "medium":
+        st.session_state["scenario_losses_pct"] = 0.0
 
 
 def load_selected_preset():
@@ -130,8 +137,17 @@ with tab_build:
         boundary = st.selectbox("What do the shares represent?", ["hypothetical", "consumption", "generation"], key="scenario_boundary", help="Local generation is not necessarily the mix consumed by facilities.")
         evidence_status = st.selectbox("Evidence / review status", ["illustrative", "user_supplied_unverified", "verified"], key="scenario_evidence", help="Verified means an instructor checked the provenance, geographic scope, balance and year.")
     with c3:
-        voltage = st.selectbox("Electricity delivery level", ["high", "medium", "low"], key="scenario_voltage")
-        losses_pct = st.number_input("Losses to delivered kWh (%) — simplified scaling", min_value=0.0, max_value=34.9, step=0.5, key="scenario_losses_pct")
+        voltage = st.selectbox(
+            "Electricity delivery level", ["high", "medium", "low"],
+            key="scenario_voltage", on_change=on_voltage_change,
+            help="MV export requires a locally reviewed region adapter; low voltage is not supported.",
+        )
+        losses_pct = st.number_input(
+            "Losses to delivered kWh (%) — simplified scaling",
+            min_value=0.0, max_value=34.9, step=0.5,
+            key="scenario_losses_pct", disabled=(voltage == "medium"),
+            help="MV export uses reviewed transformation and market losses instead of this generic adjustment.",
+        )
     source_url = st.text_input("Primary public data source URL (required for documented scenarios)", key="scenario_source_url")
     ecoinvent_version = st.selectbox(
         "Background LCI database (supported for openLCA export)",
@@ -401,20 +417,28 @@ with tab_library:
                 f"Selected {len(selected)} of {len(active_mix)} active providers. "
                 "Nothing is selected automatically. Each choice requires a short rationale."
             )
-            if st.session_state.get("scenario_payload", {}).get("voltage") != "high":
-                st.warning("Only high-voltage custom electricity processes can be exported.")
+            selected_voltage = st.session_state.get("scenario_payload", {}).get("voltage")
+            if selected_voltage == "medium":
+                st.info(
+                    "MV export is supported in v0.9 with an additional instructor-reviewed "
+                    "regional HV market → transformer → MV market adapter in Tab 3. "
+                    "The adapter must come from the same licensed .zolca."
+                )
+            elif selected_voltage == "low":
+                st.warning("Low-voltage custom supply is not supported by this exporter.")
 
 
 with tab_openlca:
-    st.subheader("Export a custom high-voltage electricity unit process")
+    st.subheader("Export custom high- or medium-voltage electricity")
     st.info(
-        "Choose the electricity providers in Tab 2 first. This export contains a single "
-        "foreground process referencing processes already inside your licensed .zolca. "
-        "The cloud app does not contain ecoinvent inventories."
+        "Choose generation providers in Tab 2 first. HV export contains one foreground "
+        "generation-mix process. MV export requires a reviewed regional network adapter "
+        "and produces linked copies of the HV market, transformer, and MV market. "
+        "Full impact calculations take place in your licensed openLCA database."
     )
     st.markdown(
         "**Prerequisites:** matching restored ecoinvent 3.12 cut-off .zolca in openLCA 2, "
-        "an instructor-approved provider library, and HIGH-voltage electricity."
+        "an instructor-approved provider library; for MV also a reviewed, local network adapter."
     )
     catalog = None
     library = st.session_state.get("provider_library_data")
@@ -477,21 +501,137 @@ with tab_openlca:
     if catalog is None:
         st.warning("No complete approved provider selection is available. Configure the library and choose providers in Tab 2, or use the legacy v0.2 catalog.")
     elif sc is not None:
-        st.caption(f"Target database: {catalog.get('database_label', 'NOT SPECIFIED')} · Catalog reviewed by: {catalog.get('approved_by', 'UNKNOWN')}")
-        cat_errors, cat_warnings = validate_catalog(catalog, sc)
-        for error in cat_errors:
-            st.error(error)
-        for warning in cat_warnings:
-            st.warning(warning)
-        if not cat_errors:
-            details = package_preview(sc, catalog)
-            st.success("Ready to create an openLCA JSON-LD ZIP for the specified database (schema checks only).")
-            st.write("**Output process:**", details['name'])
-            st.dataframe(pd.DataFrame(details['inputs']), use_container_width=True, hide_index=True)
-            st.download_button("Download openLCA JSON-LD ZIP", make_openlca_package(sc, catalog),
-                               file_name="electricity_foreground_openLCA_IMPORT.zip", mime="application/zip", type="primary")
-            st.markdown("""**In openLCA:** Select your matching target database → **Import → Linked Data (JSON-LD)** → choose the downloaded ZIP → **Never update datasets that already exist**. Then inspect the new process's exchanges and default providers, run **Check linking properties**, and connect it to your product system before calculation.""")
-            st.warning("Import and provider resolution must be checked locally. This export has not been tested against your licensed openLCA database. A valid ZIP does not establish a regional electricity footprint or LCIA result.")
+        st.caption(
+            f"Target database: {catalog.get('database_label', 'NOT SPECIFIED')} "
+            f"· Generator library reviewed by: {catalog.get('approved_by', 'UNKNOWN')}"
+        )
+        if sc.get("voltage") == "high":
+            cat_errors, cat_warnings = validate_catalog(catalog, sc)
+            for error in cat_errors:
+                st.error(error)
+            for warning in cat_warnings:
+                st.warning(warning)
+            if not cat_errors:
+                details = package_preview(sc, catalog)
+                st.success("HV JSON-LD package passed structural checks (local openLCA import not yet verified).")
+                st.write("**Output process:**", details["name"])
+                st.dataframe(pd.DataFrame(details["inputs"]), use_container_width=True, hide_index=True)
+                st.download_button(
+                    "Download HV openLCA JSON-LD ZIP",
+                    make_openlca_package(sc, catalog),
+                    file_name="electricity_HV_openLCA_IMPORT.zip",
+                    mime="application/zip", type="primary",
+                )
+                st.markdown(
+                    "**In openLCA:** Import → Linked Data (JSON-LD) → ZIP → "
+                    "**Never update existing datasets**. Confirm the new process's "
+                    "default providers, run linking checks, create a product system, and calculate LCIA."
+                )
+                st.warning("Valid ZIP structure does not prove functioning provider links, database fidelity or regional representativeness.")
+        elif sc.get("voltage") == "medium":
+            st.markdown("#### Medium-voltage extension · v0.9 pilot")
+            st.warning(
+                "The regional MV adapter contains ecoinvent exchange amounts. "
+                "Keep it private and run this app LOCALLY against your licensed database "
+                "unless your license explicitly permits uploading those exchanges to a cloud service. "
+                "Never commit mv_adapter_*.json to a public repository."
+            )
+            st.caption(
+                "Instructor prerequisite: run extract_mv_adapter.py locally for the same "
+                ".zolca and geography, review the HV market / transformation / MV market "
+                "inputs and suppliers, then set approved=true in the private JSON."
+            )
+            mv_adapter = None
+            try:
+                adapter_secret = st.secrets.get("mv_adapter_json")
+            except (FileNotFoundError, KeyError, AttributeError):
+                adapter_secret = None
+            if adapter_secret:
+                try:
+                    mv_adapter = (
+                        json.loads(adapter_secret) if isinstance(adapter_secret, str)
+                        else dict(adapter_secret)
+                    )
+                    st.info("Private MV adapter loaded from deployment settings.")
+                except (ValueError, TypeError) as exc:
+                    st.error(f"MV adapter secret is invalid: {exc}")
+            if mv_adapter is None:
+                adapter_upload = st.file_uploader(
+                    "Instructor-reviewed LOCAL regional MV adapter (JSON)",
+                    type=["json"], key="mv_adapter_upload",
+                )
+                if adapter_upload is not None:
+                    try:
+                        mv_adapter = json.loads(adapter_upload.getvalue().decode("utf-8-sig"))
+                    except (UnicodeDecodeError, ValueError) as exc:
+                        st.error(f"MV adapter JSON could not be read: {exc}")
+            st.session_state["mv_adapter_data"] = mv_adapter
+            if mv_adapter is None:
+                st.info("MV exports are blocked until a reviewed regional adapter is loaded.")
+            else:
+                mv_errors, mv_warnings = validate_mv_adapter(mv_adapter, catalog, sc)
+                for err in mv_errors:
+                    st.error(err)
+                if mv_warnings:
+                    with st.expander(f"View {len(mv_warnings)} MV modeling advisories"):
+                        for warning in mv_warnings:
+                            st.warning(warning)
+                if not mv_errors:
+                    summary = mv_preview(sc, catalog, mv_adapter)
+                    st.success(
+                        "MV package passed static topology and flow checks. "
+                        "This is NOT a completed openLCA replication validation."
+                    )
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric(
+                        "HV input per 1 kWh transformed MV",
+                        f"{summary['transformation_hv_per_mv_kwh']:.6f} kWh",
+                    )
+                    c2.metric(
+                        "MV self-input / kWh",
+                        f"{summary['mv_self_input_kwh_per_kwh']:.6f} kWh",
+                    )
+                    c3.metric(
+                        "Original direct MV share rerouted through HV",
+                        f"{summary['original_direct_mv_kwh_replaced']:.6f} kWh",
+                    )
+                    st.caption(
+                        f"Adapter geography: {summary['adapter_region']}. These are extracted "
+                        "region-specific coefficients, not hard-coded Ontario defaults. "
+                        "Custom mode assumes all declared generation is supplied at HV."
+                    )
+                    st.dataframe(pd.DataFrame(summary["processes"]),
+                                 use_container_width=True, hide_index=True)
+                    a, b = st.columns(2)
+                    with a:
+                        st.download_button(
+                            "1 · Download MV baseline replication ZIP",
+                            mv_package(sc, catalog, mv_adapter, replicate=True),
+                            file_name="electricity_MV_BASELINE_REPLICATION_openLCA.zip",
+                            mime="application/zip",
+                        )
+                    with b:
+                        st.download_button(
+                            "2 · Download customized MV ZIP",
+                            mv_package(sc, catalog, mv_adapter, replicate=False),
+                            file_name="electricity_MV_CUSTOM_openLCA.zip",
+                            mime="application/zip", type="primary",
+                        )
+                    st.info(
+                        "IMPORT TEST FIRST: Import the replication ZIP into a copy of "
+                        "the exact restored .zolca without overwriting existing datasets. "
+                        "Compare original and replicated MV product-system LCIA. Only "
+                        "after they agree should you import and assess the custom MV ZIP. "
+                        "Verify self-links, providers, and no provincial generation leakage."
+                    )
+                    st.warning(
+                        "Custom MV creates four foreground processes. The MV market's direct "
+                        "generation is rerouted through the HV pathway. HV network exchanges "
+                        "are preserved from the regional adapter, but import/export boundaries "
+                        "and generation representativeness still require explicit review."
+                    )
+        else:
+            st.warning("Low-voltage export is not supported. Select HV or MV in Tab 1.")
     else:
         st.warning("Create a scenario in Tab 1 first.")
 
@@ -526,6 +666,20 @@ with tab_openlca:
         report = scenario_documentation_report(
             sc_doc, doc_errors, doc_warnings, provider_decisions
         )
+        if sc_doc.get("voltage") == "medium":
+            adapter_documented = st.session_state.get("mv_adapter_data")
+            report += (
+                "\n## Medium-voltage modeling (v0.9)\n\n"
+                "- Regional HV market, HV-to-MV transformation, and MV market require "
+                "an approved local adapter from the exact licensed background database.\n"
+                "- No generic loss factor should be added on top of adapter losses.\n"
+                "- Custom mode reroutes the original direct-MV generation through the HV pathway; "
+                "the generation-to-consumption mapping remains an assumption.\n"
+                "- Baseline LCIA replication and local provider linking are prerequisites "
+                "for interpreting a customized MV result.\n"
+                f"- Regional adapter geography: "
+                f"{adapter_documented.get('region', 'not yet supplied') if isinstance(adapter_documented, dict) else 'not yet supplied'}\n"
+            )
         archive_buffer = io.BytesIO()
         with zipfile.ZipFile(
             archive_buffer, "w", compression=zipfile.ZIP_DEFLATED
@@ -571,14 +725,16 @@ with tab_help:
 
 1. **Build supply mix (Tab 1):** Choose a scenario, enter generation shares, sources, year and the generation/consumption boundary. Review share validation and scientific advisories.
 2. **Select providers (Tab 2):** Search the instructor-approved ecoinvent 3.12 cut-off provider catalog. Choose suitable **generation** processes (not pre-mixed electricity markets) and document each selection.
-3. **Export to openLCA (Tab 3):** Download the linked JSON-LD foreground unit process and the separate scenario documentation ZIP and methodology report.
+3. **Export to openLCA (Tab 3):** For HV, download the generation-mix ZIP. For MV, provide a locally reviewed region adapter, download the baseline replication ZIP, then the customized MV ZIP. Download scenario documentation separately.
 4. **Calculate in openLCA:** Restore the same class `.zolca`, import the JSON-LD ZIP, verify provider links and calculate the complete product-system LCI/LCIA. Compare the custom supply scenario with your existing grid baseline.
 
 ### Key cautions
 
 - A regional **generation** mix is not automatically the electricity mix **consumed** at a site; imports, exports, losses and interzonal transfers can matter.
 - The tool neither retrieves official regional grid statistics nor redistributes licensed ecoinvent inventories.
-- The openLCA exporter currently supports only **ecoinvent 3.12 cut-off high-voltage** electricity; medium- and low-voltage transformation and distribution are not reconstructed automatically.
+- MV export is a **v0.9 pilot** requiring an instructor-reviewed local adapter with the same ecoinvent 3.12 cut-off UUIDs. It is not validated solely by generating a ZIP. Low voltage remains unsupported.
+- MV customization preserves source-market network exchanges but routes all scenario generation through HV; direct MV generation, imports and proxies must be reviewed.
+- Never publish or upload exchange-bearing MV adapters to a cloud app without confirming ecoinvent licensing permissions.
 - An instructor-approved provider catalog checks dataset references, not whether regional generation assumptions are representative.
 - **An importable ZIP is not a verified LCA result.** Examine the imported exchanges, provider UUIDs and calculated LCIA results in your own licensed openLCA database.
 """)

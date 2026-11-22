@@ -1,6 +1,6 @@
-# Regional Electricity LCA Builder — v0.8
+# Regional Electricity LCA Builder — v0.9 (MV pilot)
 
-A student-friendly Streamlit tool for constructing a documented **regional electricity supply scenario** and exporting a **custom high-voltage foreground unit process** for openLCA 2. The current exporter targets **ecoinvent 3.12 cut-off**, using an instructor-approved provider library extracted from the class's shared `.zolca`.
+A student-friendly Streamlit tool for constructing a documented **regional electricity supply scenario** and exporting **custom high-voltage or region-adapted medium-voltage foreground processes** for openLCA 2. The exporter targets **ecoinvent 3.12 cut-off** and instructor-reviewed references from the same restored class `.zolca`. **MV export is a pilot requiring local source-database extraction and openLCA replication validation**.
 
 ## What problem does this solve?
 
@@ -12,14 +12,14 @@ An LCI database may lack a current, representative electricity supply mix for th
 
 1. **Build supply mix:** Choose the hypothetical example, the client-proposed IESO Northwest 2025 generation example, or a custom scenario. Edit technology shares and sources; review arithmetic validation and provenance advisories. No emission factors or GWP calculations are required.
 2. **Select providers:** Use the instructor-reviewed library extracted from the *same* ecoinvent 3.12 cut-off `.zolca` students use. Existing electricity markets can be browsed for the **baseline**; choose actual generation processes for the **custom mix**. Geographies are ranked as search preferences, not automatic claims of suitability. Confirm CHP technology, unusual industrial co-products and storage assumptions. Write a short provider-selection rationale.
-3. **Export to openLCA:** Once an approved library and all required provider choices are present, download the linked **openLCA JSON-LD ZIP** containing one foreground high-voltage unit process. On the *same tab*, download a **scenario documentation ZIP** and a **methodology report**, even before an instructor library is available (as long as the scenario passes arithmetic checks). The documentation ZIP is **not importable** into openLCA.
+3. **Export to openLCA:** For HV, download one foreground high-voltage generation process. For MV, load an approved regional network adapter and download **both** a three-process baseline replication ZIP and four-process custom MV ZIP. These require local openLCA linking and LCIA checks. The independent scenario documentation ZIP and methodology report remain available without a provider library when arithmetic checks pass; documentation ZIPs are **not importable**.
 4. **Guide & cautions:** Review class workflow, limitations and the Northwest worked tutorial.
 
 ### openLCA import and calculation
 
-In openLCA 2, restore the matching licensed class `.zolca`; choose **Import → Linked Data (JSON-LD)** and the exported process ZIP. Avoid overwriting pre-existing ecoinvent datasets. Inspect the new process's quantitative-reference electricity output, technology-specific input exchanges, and **default providers**. Verify provider links, create a test product system and run LCI/LCIA. Only then replace a compatible **high-voltage** supply input in the project product system and compare with the original baseline.
+In openLCA 2, restore the matching licensed class `.zolca`; choose **Import → Linked Data (JSON-LD)** and the exported process ZIP. Avoid overwriting pre-existing ecoinvent datasets. Inspect the new process's quantitative-reference electricity output, technology-specific input exchanges, and **default providers**. Verify provider links, create a test product system and run LCI/LCIA. Only then replace a compatible **high- or medium-voltage** supply input in the project product system and compare with the original baseline.
 
-The current exporter does **not** reconstruct medium/low-voltage transformation, grid infrastructure, interzonal transfers or imports. Generation mix and electricity consumed at a facility are not automatically the same. The simple loss-scaling option does not replace proper transmission/distribution modeling. An exported ZIP alone does not prove scientific representativeness or functioning provider links.
+**MV v0.9:** Supports an instructor-reviewed three-process topology (regional HV market → HV-to-MV transformation → regional MV market) by copying original region-specific coefficients, network exchanges and self-consumption from a local, licensed source. All user-specified generation is modeled through the HV pathway; direct MV generation from the original market is replaced rather than retained. Its three-process baseline replication must match original LCIA results before the four-process custom result is interpreted. **Low-voltage supply, real power flows, actual regional import/export balances and general multi-voltage topologies remain unsupported.**
 
 ## Instructor preparation (local)
 
@@ -39,8 +39,11 @@ The current exporter does **not** reconstruct medium/low-voltage transformation,
 4. Review the candidate `entries` (generation providers) and `markets` (baseline markets). Verify technology, location, reference electricity flow, voltage and CHP/coproduction treatment. **All entries start unapproved.** Mark only defensible candidates `"approved": true`, then approve the library as a whole.
 5. Subject to institutional and ecoinvent license terms, upload approved metadata as a **session JSON** in Tab 2 or configure the private `provider_library_json` Streamlit secret. Never upload your `.zolca` or licensed inventory exchanges to a public repository.
 6. Pilot an exported JSON-LD ZIP against the restored class database, check provider UUID links and calculate a test product system before teaching with it.
+7. For **medium voltage**, follow the [v0.9 MV instructor pilot guide](docs/MEDIUM_VOLTAGE_v0.9.md) to extract and approve the additional **local** region adapter. Import its baseline replication ZIP and compare LCIA with the original ecoinvent MV market BEFORE using the customized MV process.
 
 The catalog's UUIDs are tied to the particular converted openLCA database. Different versions, system models or conversions may not use the same identifiers. The public Streamlit app never connects to the instructor's IPC server.
+
+**Licensing:** An MV adapter contains process exchange amounts and may be licensed ecoinvent LCI. Keep the adapter and licensed database on the local instructor workstation by default, do not commit adapter JSON to this repository, and do not upload it to public Streamlit without verified redistribution permissions. The optional upload field is intended for licensed/local deployments. Synthetic tests and public code contain no source-database exchanges.
 
 ## Repository contents
 
@@ -50,13 +53,16 @@ The catalog's UUIDs are tied to the particular converted openLCA database. Diffe
 | `grid_core.py` | Scenario-share validation, CSV parsing, methodology reports and documentation exports; obsolete carbon-factor calculations have been removed |
 | `provider_library.py` | Instructor approval guards, region ranking, generator classification and explicit provider selections |
 | `extract_provider_library.py` | Read-only IPC discovery of reference-electricity suppliers from restored local `.zolca` |
-| `openlca_jsonld.py` | Native openLCA JSON-LD foreground process ZIP |
+| `openlca_jsonld.py` | Native openLCA JSON-LD HV foreground process ZIP |
+| `extract_mv_adapter.py` | Local read-only extraction of three regional HV/MV processes, unapproved by default |
+| `mv_market.py` | Guarded regional MV topology, baseline replication, adapted MV JSON-LD exporter |
+| `docs/MEDIUM_VOLTAGE_v0.9.md` | MV instructor review, local extraction, license and LCIA validation workflow |
 | `instructor_catalog.py`, `openlca_bridge.py` | Legacy instructor-only approaches, not needed in the main student workflow |
 | `tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md` | Current worked student tutorial |
 | `data/` | Illustrative mixes and templates; no licensed LCI |
 | `tests/` | Python validation, exporter checks and Streamlit startup smoke test |
 
-**Current student materials (v0.7):** The [Word Northwest tutorial](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.docx), [Markdown tutorial](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md), and [Excel scenario workbook](Electricity_Scenario_Student_Template.xlsx) all follow the four-tab openLCA unit-process workflow. The workbook includes a formula-checked Northwest example, an editable supply mix, a provider-selection log, an import checklist and source notes. No GWP-screening exercises are included.
+**Existing HV student materials (v0.8-compatible):** The [Word Northwest tutorial](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.docx), [Markdown tutorial](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md), and [Excel scenario workbook](Electricity_Scenario_Student_Template.xlsx) all follow the four-tab openLCA unit-process workflow. The workbook includes a formula-checked Northwest example, an editable supply mix, a provider-selection log, an import checklist and source notes. No GWP-screening exercises are included.
 
 ## Deployment and testing
 
@@ -64,7 +70,7 @@ Deploy `app.py` with `requirements.txt` on Streamlit Community Cloud. The cloud 
 
 ```bash
 python -m unittest discover -s tests -v
-python -m py_compile app.py grid_core.py openlca_jsonld.py provider_library.py extract_provider_library.py
+python -m py_compile app.py grid_core.py openlca_jsonld.py provider_library.py extract_provider_library.py mv_market.py extract_mv_adapter.py
 ```
 
 GitHub Actions runs these checks on pushes. They **do not replace** a live JSON-LD import/link/LCIA pilot against the actual licensed database.
