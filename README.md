@@ -12,14 +12,14 @@ An LCI database may lack a current, representative electricity supply mix for th
 
 1. **Build supply mix:** Choose the hypothetical example, the client-proposed IESO Northwest 2025 generation example, or a custom scenario. Edit technology shares and sources; review arithmetic validation and provenance advisories. No emission factors or GWP calculations are required.
 2. **Select providers:** Use the instructor-reviewed library extracted from the *same* ecoinvent 3.12 cut-off `.zolca` students use. Existing electricity markets can be browsed for the **baseline**; choose actual generation processes for the **custom mix**. Geographies are ranked as search preferences, not automatic claims of suitability. Confirm CHP technology, unusual industrial co-products and storage assumptions. Write a short provider-selection rationale.
-3. **Export to openLCA:** For HV, download one foreground high-voltage generation process. For MV, load an approved regional network adapter and download **both** a three-process baseline replication ZIP and four-process custom MV ZIP. These require local openLCA linking and LCIA checks. The independent scenario documentation ZIP and methodology report remain available without a provider library when arithmetic checks pass; documentation ZIPs are **not importable**.
+3. **Export to openLCA:** For HV, download one foreground high-voltage generation process. For MV, **first** upload an extracted local adapter and download the three-process baseline replication ZIP **without a generation-provider catalog or scientific approval**. Record instructor source review and two-category openLCA LCIA comparison. Only then can a four-process custom MV ZIP be unlocked with approved generation providers. The independent scenario documentation ZIP and methodology report remain available without a provider library when arithmetic checks pass; documentation ZIPs are **not importable**.
 4. **Guide & cautions:** Review class workflow, limitations and the Northwest worked tutorial.
 
 ### openLCA import and calculation
 
 In openLCA 2, restore the matching licensed class `.zolca`; choose **Import → Linked Data (JSON-LD)** and the exported process ZIP. Avoid overwriting pre-existing ecoinvent datasets. Inspect the new process's quantitative-reference electricity output, technology-specific input exchanges, and **default providers**. Verify provider links, create a test product system and run LCI/LCIA. Only then replace a compatible **high- or medium-voltage** supply input in the project product system and compare with the original baseline.
 
-**MV v0.9:** Supports an instructor-reviewed three-process topology (regional HV market → HV-to-MV transformation → regional MV market) by copying original region-specific coefficients, network exchanges and self-consumption from a local, licensed source. All user-specified generation is modeled through the HV pathway; direct MV generation from the original market is replaced rather than retained. Its three-process baseline replication must match original LCIA results before the four-process custom result is interpreted. **Low-voltage supply, real power flows, actual regional import/export balances and general multi-voltage topologies remain unsupported.**
+**MV v0.9:** Supports an instructor-reviewed three-process topology (regional HV market → HV-to-MV transformation → regional MV market) by copying original region-specific coefficients, network exchanges and self-consumption from a local, licensed source. All user-specified generation is modeled through the HV pathway; direct MV generation from the original market is replaced rather than retained. The three-process replication can be exported immediately from structurally valid extracted source data. Custom export is gated on instructor review, recorded numeric agreement for GWP and another impact category, matching source fingerprint, and approved generation providers. Replication evidence is instructor-entered, not independently computed by the cloud app. **Low-voltage supply, real power flows, actual regional import/export balances and general multi-voltage topologies remain unsupported.**
 
 ## Instructor preparation (local)
 
@@ -39,7 +39,7 @@ In openLCA 2, restore the matching licensed class `.zolca`; choose **Import → 
 4. Review the candidate `entries` (generation providers) and `markets` (baseline markets). Verify technology, location, reference electricity flow, voltage and CHP/coproduction treatment. **All entries start unapproved.** Mark only defensible candidates `"approved": true`, then approve the library as a whole.
 5. Subject to institutional and ecoinvent license terms, upload approved metadata as a **session JSON** in Tab 2 or configure the private `provider_library_json` Streamlit secret. Never upload your `.zolca` or licensed inventory exchanges to a public repository.
 6. Pilot an exported JSON-LD ZIP against the restored class database, check provider UUID links and calculate a test product system before teaching with it.
-7. For **medium voltage**, follow the [v0.9 MV instructor pilot guide](docs/MEDIUM_VOLTAGE_v0.9.md) to extract and approve the additional **local** region adapter. Import its baseline replication ZIP and compare LCIA with the original ecoinvent MV market BEFORE using the customized MV process.
+7. For **medium voltage**, follow the [v0.9 MV instructor pilot guide](docs/MEDIUM_VOLTAGE_v0.9.md): extract a **local** source adapter, export baseline replication without a generator library, review its source links, compare original and replicated MV LCIA results, save the resulting local validation record, and only then configure custom generation providers.
 
 The catalog's UUIDs are tied to the particular converted openLCA database. Different versions, system models or conversions may not use the same identifiers. The public Streamlit app never connects to the instructor's IPC server.
 
@@ -66,7 +66,7 @@ The catalog's UUIDs are tied to the particular converted openLCA database. Diffe
 
 ## Deployment and testing
 
-Deploy `app.py` with `requirements.txt` on Streamlit Community Cloud. The cloud does not require `olca-ipc`, `olca-schema` or a licensed database. A matching openLCA 2 installation and the licensed class `.zolca` are required to calculate the full impacts after import.
+Deploy `app.py` with `requirements.txt` on Streamlit Community Cloud. The cloud does not require `olca-ipc`, `olca-schema` or a licensed database. A matching openLCA 2 installation and licensed class `.zolca` are required to calculate impacts after import. The local MV adapter passes through stages **extracted → reviewed_for_testing → replication_validated**; the last is a recorded instructor comparison, not independent scientific verification.
 
 ```bash
 python -m unittest discover -s tests -v

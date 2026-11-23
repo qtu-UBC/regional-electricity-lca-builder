@@ -9,7 +9,12 @@ from types import SimpleNamespace as Obj
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from mv_market import validate_mv_adapter, make_mv_processes, mv_package, mv_preview
+from mv_market import (
+    adapter_review_status, source_fingerprint, validate_mv_structure,
+    validate_mv_adapter, make_mv_processes, make_mv_replication_processes,
+    mv_package, mv_replication_package, mv_preview, mark_reviewed_for_testing,
+    record_replication_validation, replication_evidence_errors,
+)
 from extract_mv_adapter import extract_adapter
 
 
@@ -74,8 +79,8 @@ def sample():
         ]
     }
     adapter = {
-        "adapter_version": 1, "approved": True, "approved_by": "TEST MV reviewer",
-        "reviewed_date": "2026-11-22",
+        "adapter_version": 1, "review_status": "extracted",
+        "extracted_by": "TEST MV reviewer", "extracted_date": "2026-11-22",
         "database_label": catalog["database_label"],
         "system_model": "cut-off", "region": "Canada, Ontario",
         "extraction_truncated": False,
@@ -112,6 +117,23 @@ def sample():
     return scenario, catalog, adapter
 
 
+def validated_adapter(ad):
+    reviewed = mark_reviewed_for_testing(
+        ad, "Instructor", "Reviewed source exchange amounts, provider UUIDs, and loops."
+    )
+    return record_replication_validation(
+        reviewed, checked_by="Instructor", method="TEST impact method 1.0",
+        comparisons=[
+            {"category": "Climate change / GWP", "original": 0.1,
+             "replicated": 0.10001, "unit": "kg CO2 eq"},
+            {"category": "Acidification", "original": 0.02,
+             "replicated": 0.020001, "unit": "kg SO2 eq"},
+        ],
+        notes="Test records from matching local openLCA product systems.",
+        links_checked=True,
+    )
+
+
 def input_exchanges(p, name):
     return [x for x in p["exchanges"] if x["isInput"] and x["flow"]["name"] == name]
 
@@ -119,12 +141,18 @@ def input_exchanges(p, name):
 class MVAdapterTests(unittest.TestCase):
     def test_ontario_shaped_adapter_passes(self):
         sc, cat, ad = sample()
-        errors, warnings = validate_mv_adapter(ad, cat, sc)
+        errors, warnings = validate_mv_structure(ad)
         self.assertEqual(errors, [])
         self.assertTrue(warnings)
+        self.assertEqual(adapter_review_status(ad), "extracted")
+        self.assertTrue(validate_mv_adapter(ad, cat, sc)[0])
+        validated = validated_adapter(ad)
+        errors, _ = validate_mv_adapter(validated, cat, sc)
+        self.assertEqual(errors, [])
 
     def test_custom_four_processes_replace_supply_and_preserve_network(self):
         sc, cat, ad = sample()
+        ad = validated_adapter(ad)
         mix, hv, tr, mv = make_mv_processes(sc, cat, ad)
         self.assertEqual(len({p["@id"] for p in (mix, hv, tr, mv)}), 4)
         self.assertEqual(input_exchanges(hv, HV["name"])[0]["amount"], 0.003)
@@ -155,7 +183,7 @@ class MVAdapterTests(unittest.TestCase):
 
     def test_replication_preserves_external_sources_and_direct_mv(self):
         sc, cat, ad = sample()
-        hv, tr, mv = make_mv_processes(sc, cat, ad, replicate=True)
+        hv, tr, mv = make_mv_replication_processes(ad)  # no catalog, no prior approval
         self.assertEqual(len(input_exchanges(hv, HV["name"])), 2)
         self.assertEqual(input_exchanges(hv, HV["name"])[0]["defaultProvider"]["@id"], uid(43))
         self.assertEqual(input_exchanges(hv, HV["name"])[1]["defaultProvider"]["@id"], hv["@id"])
@@ -169,6 +197,10 @@ class MVAdapterTests(unittest.TestCase):
 
     def test_package_schema_and_preview(self):
         sc, cat, ad = sample()
+        self.assertEqual(len(make_mv_replication_processes(ad)), 3)
+        with zipfile.ZipFile(io.BytesIO(mv_replication_package(ad))) as baseline:
+            self.assertEqual(len(baseline.namelist()), 4)
+        ad = validated_adapter(ad)
         b = mv_package(sc, cat, ad)
         with zipfile.ZipFile(io.BytesIO(b)) as archive:
             names = archive.namelist()
@@ -183,6 +215,10 @@ class MVAdapterTests(unittest.TestCase):
 
     def test_deterministic_ids_and_mode_difference(self):
         sc, cat, ad = sample()
+        original_baseline = make_mv_replication_processes(ad)
+        ad = validated_adapter(ad)
+        self.assertEqual([x["@id"] for x in original_baseline],
+                         [x["@id"] for x in make_mv_replication_processes(ad)])
         a = make_mv_processes(sc, cat, ad)
         b = make_mv_processes(sc, cat, ad)
         c = make_mv_processes(sc, cat, ad, replicate=True)
@@ -192,19 +228,71 @@ class MVAdapterTests(unittest.TestCase):
         d = make_mv_processes(sc, cat, ad)
         self.assertNotEqual(a[-1]["@id"], d[-1]["@id"])
 
-    def test_unapproved_or_mismatched_adapter_is_blocked(self):
+    def test_legacy_approved_flag_does_not_unlock_custom_export(self):
         sc, cat, ad = sample()
-        ad["approved"] = False
-        self.assertTrue(validate_mv_adapter(ad, cat, sc)[0])
+        ad["approved"] = True
+        self.assertEqual(adapter_review_status(ad), "extracted")
         with self.assertRaises(ValueError):
             mv_package(sc, cat, ad)
-        ad["approved"] = True
-        ad["database_label"] = "ecoinvent 3.11 cut-off"
-        self.assertTrue(any("same restored" in s for s in
+        self.assertEqual(len(make_mv_replication_processes(ad)), 3)
+
+    def test_mismatched_catalog_blocks_custom_but_not_replication(self):
+        sc, cat, ad = sample()
+        ad = validated_adapter(ad)
+        cat["database_label"] = "ecoinvent 3.11 cut-off"
+        self.assertTrue(any("same restored" in err for err in
                             validate_mv_adapter(ad, cat, sc)[0]))
+        self.assertEqual(len(make_mv_replication_processes(ad)), 3)
+
+    def test_stale_replication_after_source_exchange_change_is_blocked(self):
+        sc, cat, ad = sample()
+        validated = validated_adapter(ad)
+        original = source_fingerprint(validated)
+        validated["processes"]["transformation"]["exchanges"][1]["amount"] += 0.001
+        self.assertNotEqual(original, source_fingerprint(validated))
+        self.assertTrue(any("changed" in err for err in
+                            replication_evidence_errors(validated)))
+        self.assertTrue(validate_mv_adapter(validated, cat, sc)[0])
+
+    def test_review_and_manual_lcia_evidence_checks(self):
+        sc, cat, ad = sample()
+        with self.assertRaises(ValueError):
+            record_replication_validation(
+                ad, checked_by="Instructor", method="TRACI 2.1",
+                comparisons=[], notes="Local comparison checked",
+                links_checked=True)
+        reviewed = mark_reviewed_for_testing(
+            ad, "Instructor", "Verified original source provider links.")
+        self.assertEqual(adapter_review_status(reviewed), "reviewed_for_testing")
+        self.assertEqual(len(make_mv_replication_processes(reviewed)), 3)
+        with self.assertRaisesRegex(ValueError, "exceeds tolerance"):
+            record_replication_validation(
+                reviewed, checked_by="Instructor", method="TRACI 2.1",
+                comparisons=[
+                    {"category": "Climate change / GWP", "original": 0.1, "replicated": 0.2, "unit": "kg CO2 eq"},
+                    {"category": "Acidification", "original": 2, "replicated": 2, "unit": "kg SO2 eq"},
+                ],
+                notes="Local comparison checked", links_checked=True)
+        with self.assertRaisesRegex(ValueError, "Include a climate"):
+            record_replication_validation(
+                reviewed, checked_by="Instructor", method="TRACI 2.1",
+                comparisons=[
+                    {"category": "Ozone depletion", "original": 0.01, "replicated": 0.01, "unit": "kg CFC11"},
+                    {"category": "Acidification", "original": 2, "replicated": 2, "unit": "kg SO2 eq"},
+                ],
+                notes="Local comparison checked", links_checked=True)
+        validated = validated_adapter(ad)
+        self.assertFalse(replication_evidence_errors(validated))
+        self.assertEqual(adapter_review_status(validated), "replication_validated")
+        self.assertTrue(validated["replication_validation"]["links_checked"])
+        self.assertEqual(validated["replication_validation"]["source_fingerprint"],
+                         source_fingerprint(ad))
+        self.assertEqual(validated["replication_validation"]["replicated_mv_process_id"],
+                         make_mv_replication_processes(ad)[-1]["@id"])
 
     def test_double_loss_scaling_is_blocked(self):
         sc, cat, ad = sample()
+        ad = validated_adapter(ad)
         sc["loss_fraction"] = 0.02
         self.assertTrue(any("simplified loss" in s for s in
                             validate_mv_adapter(ad, cat, sc)[0]))
@@ -212,16 +300,16 @@ class MVAdapterTests(unittest.TestCase):
     def test_wrong_transform_supplier_and_flow_is_blocked(self):
         sc, cat, ad = sample()
         ad["processes"]["transformation"]["exchanges"][1]["provider"] = ref(500, "wrong")
-        self.assertTrue(any("Transformer" in s for s in validate_mv_adapter(ad, cat, sc)[0]))
+        self.assertTrue(any("Transformer" in s for s in validate_mv_structure(ad)[0]))
         sc, cat, ad = sample()
         ad["processes"]["mv_market"]["exchanges"][1]["flow"] = ref(500, MV["name"])
-        self.assertTrue(any("mismatched flow" in s for s in validate_mv_adapter(ad, cat, sc)[0]))
+        self.assertTrue(any("mismatched flow" in s for s in validate_mv_structure(ad)[0]))
 
     def test_unsupported_hv_market_voltage_mix_is_blocked(self):
         sc, cat, ad = sample()
         ad["processes"]["hv_market"]["exchanges"].append(
             exchange(MV, 0.05, inp=True, provider=ref(600, "MV provider")))
-        self.assertTrue(any("non-HV" in s for s in validate_mv_adapter(ad, cat, sc)[0]))
+        self.assertTrue(any("non-HV" in s for s in validate_mv_structure(ad)[0]))
 
     def test_extractor_makes_unapproved_local_adapter(self):
         def as_obj(d):
@@ -246,7 +334,7 @@ class MVAdapterTests(unittest.TestCase):
         }
         result = extract_adapter(descriptors, lambda i: processes[i],
                                  "Canada, Ontario", cat["database_label"], "Course instructor")
-        self.assertFalse(result["approved"])
+        self.assertEqual(result["review_status"], "extracted")
         self.assertEqual(result["processes"]["transformation"]["exchanges"][1]["amount"], 1.00482)
         with self.assertRaises(ValueError):
             extract_adapter(descriptors, lambda i: processes[i],

@@ -17,7 +17,12 @@ from grid_core import (
     scenario_documentation_report,
 )
 from openlca_jsonld import validate_catalog, package as make_openlca_package, package_preview
-from mv_market import validate_mv_adapter, mv_package, mv_preview
+from mv_market import (
+    adapter_review_status, mark_reviewed_for_testing, record_replication_validation,
+    replication_evidence_errors, source_fingerprint, validate_mv_structure,
+    validate_mv_adapter, mv_replication_package, make_mv_replication_processes,
+    mv_package, mv_preview,
+)
 from provider_library import (
     library_errors, approved_candidates, approved_markets, catalog_for_selection,
     ranked_candidates, provider_class, region_preference,
@@ -431,39 +436,44 @@ with tab_library:
 with tab_openlca:
     st.subheader("Export custom high- or medium-voltage electricity")
     st.info(
-        "Choose generation providers in Tab 2 first. HV export contains one foreground "
-        "generation-mix process. MV export requires a reviewed regional network adapter "
-        "and produces linked copies of the HV market, transformer, and MV market. "
-        "Full impact calculations take place in your licensed openLCA database."
+        "HV export requires approved generation providers. For medium voltage, "
+        "you can first reproduce an original ecoinvent market WITHOUT approving "
+        "generation providers. Custom MV export is locked until you review the "
+        "source and record successful openLCA LCIA replication."
     )
-    st.markdown(
-        "**Prerequisites:** matching restored ecoinvent 3.12 cut-off .zolca in openLCA 2, "
-        "an instructor-approved provider library; for MV also a reviewed, local network adapter."
+    st.caption(
+        "All work must target the identical restored ecoinvent 3.12 cut-off .zolca; "
+        "imported process links and environmental results require local openLCA checks."
     )
     catalog = None
     library = st.session_state.get("provider_library_data")
     if library is not None:
         problems = library_errors(library)
         if problems:
-            st.error("The provider library did not pass validation. Return to Tab 2.")
+            st.error("Generation provider library needs instructor review in Tab 2.")
         else:
             chosen = st.session_state.get("selected_provider_ids", {})
-            active = [r["technology"] for r in
-                      st.session_state.get("scenario_payload", {}).get("mix", [])
-                      if float(r.get("share") or 0) > 0]
+            active = [
+                r["technology"] for r in
+                st.session_state.get("scenario_payload", {}).get("mix", [])
+                if float(r.get("share") or 0) > 0
+            ]
             missing = [tech for tech in active if tech not in chosen]
             missing_reasons = [
                 tech for tech in active
-                if tech in chosen and not st.session_state.get("selection_justifications", {}).get(tech, "").strip()
+                if tech in chosen and not st.session_state.get(
+                    "selection_justifications", {}
+                ).get(tech, "").strip()
             ]
             if missing:
-                st.warning(
-                    "Select one approved provider for each active technology in Tab 2: "
+                st.info(
+                    "For custom HV/MV export, choose approved generation providers in Tab 2: "
                     + ", ".join(missing)
+                    + ". Baseline MV replication does not need these selections."
                 )
             elif missing_reasons:
-                st.warning(
-                    "Document why each provider is representative before exporting: "
+                st.info(
+                    "For custom export, document the provider rationale in Tab 2: "
                     + ", ".join(missing_reasons)
                 )
             else:
@@ -472,168 +482,364 @@ with tab_openlca:
                         library, chosen,
                         st.session_state.get("selection_justifications", {}),
                     )
-                    st.success("Provider selections and justifications are ready for export.")
                 except ValueError as exc:
                     st.error(str(exc))
     else:
-        # Preserve compatibility with the original v0.2 instructor catalog workflow.
         try:
             secret_catalog = st.secrets.get("provider_catalog_json")
         except (FileNotFoundError, KeyError, AttributeError):
             secret_catalog = None
         if secret_catalog:
             try:
-                catalog = json.loads(secret_catalog) if isinstance(secret_catalog, str) else dict(secret_catalog)
-                st.info("Using the legacy v0.2 instructor catalog.")
+                catalog = (
+                    json.loads(secret_catalog) if isinstance(secret_catalog, str)
+                    else dict(secret_catalog)
+                )
             except (ValueError, TypeError) as exc:
                 st.error(f"Legacy instructor catalog is invalid: {exc}")
-        if catalog is None:
-            catalog_up = st.file_uploader(
-                "Optional: upload legacy v0.2 instructor catalog (JSON)",
-                type=["json"], key="catalog_upload"
+        if catalog is None and st.session_state.get("scenario_voltage") == "high":
+            legacy_upload = st.file_uploader(
+                "Optional: legacy v0.2 instructor generator catalog (JSON)",
+                type=["json"], key="catalog_upload",
             )
-            if catalog_up is not None:
+            if legacy_upload is not None:
                 try:
-                    catalog = json.loads(catalog_up.getvalue().decode("utf-8-sig"))
+                    catalog = json.loads(
+                        legacy_upload.getvalue().decode("utf-8-sig")
+                    )
                 except (ValueError, UnicodeDecodeError) as exc:
-                    st.error(f"Catalog file could not be read: {exc}")
+                    st.error(f"Legacy catalog could not be read: {exc}")
+
     sc = st.session_state.get("scenario_payload")
-    if catalog is None:
-        st.warning("No complete approved provider selection is available. Configure the library and choose providers in Tab 2, or use the legacy v0.2 catalog.")
-    elif sc is not None:
-        st.caption(
-            f"Target database: {catalog.get('database_label', 'NOT SPECIFIED')} "
-            f"· Generator library reviewed by: {catalog.get('approved_by', 'UNKNOWN')}"
-        )
-        if sc.get("voltage") == "high":
+    if sc is None:
+        st.warning("Create a scenario in Tab 1 first.")
+    elif sc.get("voltage") == "high":
+        st.markdown("#### High-voltage generation mix")
+        if catalog is None:
+            st.warning("Configure and select approved generation providers in Tab 2 first.")
+        else:
             cat_errors, cat_warnings = validate_catalog(catalog, sc)
-            for error in cat_errors:
-                st.error(error)
+            for err in cat_errors:
+                st.error(err)
             for warning in cat_warnings:
                 st.warning(warning)
             if not cat_errors:
                 details = package_preview(sc, catalog)
-                st.success("HV JSON-LD package passed structural checks (local openLCA import not yet verified).")
+                st.success("HV package passed structural checks (not a verified LCA).")
                 st.write("**Output process:**", details["name"])
-                st.dataframe(pd.DataFrame(details["inputs"]), use_container_width=True, hide_index=True)
+                st.dataframe(
+                    pd.DataFrame(details["inputs"]), hide_index=True,
+                    use_container_width=True,
+                )
                 st.download_button(
                     "Download HV openLCA JSON-LD ZIP",
                     make_openlca_package(sc, catalog),
                     file_name="electricity_HV_openLCA_IMPORT.zip",
                     mime="application/zip", type="primary",
                 )
-                st.markdown(
-                    "**In openLCA:** Import → Linked Data (JSON-LD) → ZIP → "
-                    "**Never update existing datasets**. Confirm the new process's "
-                    "default providers, run linking checks, create a product system, and calculate LCIA."
-                )
-                st.warning("Valid ZIP structure does not prove functioning provider links, database fidelity or regional representativeness.")
-        elif sc.get("voltage") == "medium":
-            st.markdown("#### Medium-voltage extension · v0.9 pilot")
-            st.warning(
-                "The regional MV adapter contains ecoinvent exchange amounts. "
-                "Keep it private and run this app LOCALLY against your licensed database "
-                "unless your license explicitly permits uploading those exchanges to a cloud service. "
-                "Never commit mv_adapter_*.json to a public repository."
-            )
-            st.caption(
-                "Instructor prerequisite: run extract_mv_adapter.py locally for the same "
-                ".zolca and geography, review the HV market / transformation / MV market "
-                "inputs and suppliers, then set approved=true in the private JSON."
-            )
-            mv_adapter = None
+    elif sc.get("voltage") == "medium":
+        st.markdown("#### Medium-voltage workflow · v0.9")
+        st.warning(
+            "The MV adapter contains licensed ecoinvent exchange coefficients. "
+            "Use the app LOCALLY unless your ecoinvent license explicitly permits "
+            "transmitting those data to Streamlit Cloud. Do not commit adapter JSON."
+        )
+        try:
+            mv_adapter_secret = st.secrets.get("mv_adapter_json")
+        except (FileNotFoundError, KeyError, AttributeError):
+            mv_adapter_secret = None
+        source_adapter = None
+        if mv_adapter_secret:
             try:
-                adapter_secret = st.secrets.get("mv_adapter_json")
-            except (FileNotFoundError, KeyError, AttributeError):
-                adapter_secret = None
-            if adapter_secret:
-                try:
-                    mv_adapter = (
-                        json.loads(adapter_secret) if isinstance(adapter_secret, str)
-                        else dict(adapter_secret)
-                    )
-                    st.info("Private MV adapter loaded from deployment settings.")
-                except (ValueError, TypeError) as exc:
-                    st.error(f"MV adapter secret is invalid: {exc}")
-            if mv_adapter is None:
-                adapter_upload = st.file_uploader(
-                    "Instructor-reviewed LOCAL regional MV adapter (JSON)",
-                    type=["json"], key="mv_adapter_upload",
+                source_adapter = (
+                    json.loads(mv_adapter_secret)
+                    if isinstance(mv_adapter_secret, str)
+                    else dict(mv_adapter_secret)
                 )
-                if adapter_upload is not None:
-                    try:
-                        mv_adapter = json.loads(adapter_upload.getvalue().decode("utf-8-sig"))
-                    except (UnicodeDecodeError, ValueError) as exc:
-                        st.error(f"MV adapter JSON could not be read: {exc}")
-            st.session_state["mv_adapter_data"] = mv_adapter
-            if mv_adapter is None:
-                st.info("MV exports are blocked until a reviewed regional adapter is loaded.")
-            else:
-                mv_errors, mv_warnings = validate_mv_adapter(mv_adapter, catalog, sc)
-                for err in mv_errors:
-                    st.error(err)
-                if mv_warnings:
-                    with st.expander(f"View {len(mv_warnings)} MV modeling advisories"):
-                        for warning in mv_warnings:
-                            st.warning(warning)
-                if not mv_errors:
-                    summary = mv_preview(sc, catalog, mv_adapter)
-                    st.success(
-                        "MV package passed static topology and flow checks. "
-                        "This is NOT a completed openLCA replication validation."
+            except (ValueError, TypeError) as exc:
+                st.error(f"MV adapter in settings is invalid: {exc}")
+        if source_adapter is None:
+            adapter_upload = st.file_uploader(
+                "Local extracted or reviewed MV adapter (JSON)",
+                type=["json"], key="mv_adapter_upload",
+            )
+            if adapter_upload is not None:
+                try:
+                    source_adapter = json.loads(
+                        adapter_upload.getvalue().decode("utf-8-sig")
                     )
+                except (UnicodeDecodeError, ValueError) as exc:
+                    st.error(f"MV adapter JSON could not be read: {exc}")
+        if source_adapter is None:
+            st.info(
+                "Upload mv_adapter_REVIEW_LOCAL.json from the IPC extractor. "
+                "It can be EXTRACTED (unreviewed); no generator-provider catalog "
+                "or approval is needed for the baseline replication ZIP."
+            )
+        else:
+            adapter = source_adapter
+            try:
+                working = st.session_state.get("mv_working_adapter")
+                if (
+                    isinstance(working, dict)
+                    and source_fingerprint(working) == source_fingerprint(source_adapter)
+                ):
+                    stages = ("extracted", "reviewed_for_testing", "replication_validated")
+                    if (adapter_review_status(working) in stages
+                            and adapter_review_status(source_adapter) in stages
+                            and stages.index(adapter_review_status(working)) >
+                                stages.index(adapter_review_status(source_adapter))):
+                        adapter = working
+            except (TypeError, ValueError, KeyError) as exc:
+                st.error(f"Adapter fingerprint could not be computed: {exc}")
+            mv_structure_errors, mv_structure_warnings = validate_mv_structure(adapter)
+            st.markdown(
+                "**Stage:** " + adapter_review_status(adapter).replace("_", " ").title()
+            )
+            for err in mv_structure_errors:
+                st.error(err)
+            if mv_structure_warnings:
+                with st.expander(f"View {len(mv_structure_warnings)} structural caveats"):
+                    for warning in mv_structure_warnings:
+                        st.warning(warning)
+            if not mv_structure_errors:
+                replicate = make_mv_replication_processes(adapter)
+                st.caption(
+                    "Adapter geography: " + str(adapter["region"]) +
+                    " · Source fingerprint: " + source_fingerprint(adapter)[:16]
+                )
+                st.markdown("##### Stage 1 · Baseline replication (no scientific approval required)")
+                st.success(
+                    "Source topology passed structural checks. A baseline replication "
+                    "ZIP is available independently of any generation-provider catalog."
+                )
+                st.write("**Replicated MV process:**", replicate[-1]["name"])
+                st.code(replicate[-1]["@id"], language="text")
+                st.download_button(
+                    "Download baseline MV replication ZIP",
+                    mv_replication_package(adapter),
+                    file_name="electricity_MV_BASELINE_REPLICATION_openLCA.zip",
+                    mime="application/zip",
+                )
+                st.caption(
+                    "Import into a test copy of the matching .zolca without overwriting "
+                    "background datasets. Confirm all default providers, then calculate "
+                    "the original and replicated MV market at 1 kWh with the SAME LCIA method."
+                )
+
+                if adapter_review_status(adapter) == "extracted":
+                    st.markdown("##### Stage 2 · Record instructor source review")
+                    st.caption(
+                        "This records review for TESTING, not scientific approval. "
+                        "The four source UUID links and non-electric exchanges should "
+                        "be inspected in openLCA."
+                    )
+                    reviewer = st.text_input(
+                        "Reviewer name", key="mv_reviewer", value="Course instructor",
+                    )
+                    review_notes = st.text_area(
+                        "What did you check?",
+                        key="mv_review_notes",
+                        placeholder=(
+                            "Checked HV self-link, transformer-to-HV, MV-to-transformer, "
+                            "MV self-link, infrastructure and emissions."
+                        ),
+                    )
+                    review_confirm = st.checkbox(
+                        "I inspected the extracted source processes, exchange quantities "
+                        "and default-provider links (review for testing only).",
+                        key="mv_review_confirm",
+                    )
+                    if st.button("Record reviewed for testing", key="mv_review_button"):
+                        try:
+                            if not review_confirm:
+                                raise ValueError("Please confirm the source review.")
+                            adapter = mark_reviewed_for_testing(
+                                adapter, reviewer, review_notes
+                            )
+                            st.session_state["mv_working_adapter"] = adapter
+                            st.success("Recorded source review for testing.")
+                        except ValueError as exc:
+                            st.error(str(exc))
+
+                stage = adapter_review_status(adapter)
+                if stage in ("reviewed_for_testing", "replication_validated"):
+                    st.download_button(
+                        "Download locally reviewed MV adapter JSON",
+                        json.dumps(adapter, indent=2, ensure_ascii=False),
+                        file_name="mv_adapter_REVIEWED_LOCAL.json",
+                        mime="application/json",
+                    )
+
+                if stage == "reviewed_for_testing":
+                    st.markdown("##### Stage 3 · Record the openLCA replication comparison")
+                    st.caption(
+                        "Enter actual openLCA calculation results—not hypothetical values. "
+                        "Use the identical LCIA method and 1 kWh MV functional unit. "
+                        "A climate-change category and at least one OTHER category "
+                        "must match within the recorded tolerance."
+                    )
+                    comparison_method = st.text_input(
+                        "LCIA method and version (same for original and replica)",
+                        key="mv_lcia_method",
+                        placeholder="e.g., TRACI 2.1",
+                    )
+                    comparison_reviewer = st.text_input(
+                        "Comparison reviewer", key="mv_comparison_reviewer",
+                        value="Course instructor",
+                    )
+                    tolerance_percent = st.number_input(
+                        "Relative tolerance (%)",
+                        min_value=0.001, max_value=5.0, value=0.1,
+                        format="%.3f", key="mv_tolerance_percent",
+                    )
+                    ca, cb = st.columns(2)
+                    with ca:
+                        st.markdown("**Impact category 1**")
+                        climate_original = st.text_input(
+                            "Original GWP / climate-change result",
+                            key="mv_climate_original",
+                        )
+                        climate_replica = st.text_input(
+                            "Replicated GWP / climate-change result",
+                            key="mv_climate_replicated",
+                        )
+                        climate_unit = st.text_input(
+                            "GWP result unit", key="mv_climate_unit",
+                            value="kg CO2 eq",
+                        )
+                    with cb:
+                        st.markdown("**Impact category 2**")
+                        other_category = st.text_input(
+                            "Other LCIA category name", key="mv_other_category",
+                        )
+                        other_original = st.text_input(
+                            "Original result (other category)", key="mv_other_original",
+                        )
+                        other_replica = st.text_input(
+                            "Replicated result (other category)", key="mv_other_replicated",
+                        )
+                        other_unit = st.text_input(
+                            "Other category unit", key="mv_other_unit",
+                        )
+                    comparison_notes = st.text_area(
+                        "OpenLCA linking checks and comparison notes",
+                        key="mv_comparison_notes",
+                    )
+                    verified_links = st.checkbox(
+                        "I checked all copied default providers and self-links in "
+                        "openLCA, and used 1 kWh MV in both product-system calculations.",
+                        key="mv_links_verified",
+                    )
+                    if st.button(
+                        "Check numerical agreement and record replication evidence",
+                        key="mv_record_evidence",
+                    ):
+                        try:
+                            adapter = record_replication_validation(
+                                adapter,
+                                checked_by=comparison_reviewer,
+                                method=comparison_method,
+                                comparisons=[
+                                    {
+                                        "category": "Climate change / GWP",
+                                        "original": float(climate_original),
+                                        "replicated": float(climate_replica),
+                                        "unit": climate_unit,
+                                    },
+                                    {
+                                        "category": other_category,
+                                        "original": float(other_original),
+                                        "replicated": float(other_replica),
+                                        "unit": other_unit,
+                                    },
+                                ],
+                                notes=comparison_notes,
+                                links_checked=verified_links,
+                                tolerance_percent=tolerance_percent,
+                            )
+                            st.session_state["mv_working_adapter"] = adapter
+                            st.success(
+                                "Numerical agreement recorded with source-data fingerprint. "
+                                "Results were entered by the instructor; Streamlit has NOT "
+                                "independently calculated or verified LCIA."
+                            )
+                        except (ValueError, TypeError) as exc:
+                            st.error("Cannot record replication evidence: " + str(exc))
+
+                if adapter_review_status(adapter) == "replication_validated":
+                    evidence_errors = replication_evidence_errors(adapter)
+                    for err in evidence_errors:
+                        st.error(err)
+                    if not evidence_errors:
+                        st.success(
+                            "Instructor-entered LCIA replication evidence passes the "
+                            "recorded tolerance and is bound to this exact adapter."
+                        )
+                        st.download_button(
+                            "Download replication-validated adapter JSON (LOCAL)",
+                            json.dumps(adapter, indent=2, ensure_ascii=False),
+                            file_name="mv_adapter_REPLICATION_VALIDATED_LOCAL.json",
+                            mime="application/json",
+                        )
+
+                st.markdown("##### Stage 4 · Customized MV electricity")
+                if catalog is None:
+                    st.info(
+                        "Custom MV export also requires approved generation providers "
+                        "selected in Tab 2. Baseline replication above remains available."
+                    )
+                custom_errors = []
+                if catalog is not None:
+                    custom_errors, custom_warnings = validate_mv_adapter(
+                        adapter, catalog, sc
+                    )
+                    if custom_errors:
+                        with st.expander(
+                            f"Custom MV export locked · {len(custom_errors)} requirements",
+                            expanded=True,
+                        ):
+                            for err in custom_errors:
+                                st.warning(err)
+                    elif custom_warnings:
+                        with st.expander(
+                            f"View {len(custom_warnings)} custom modeling advisories"
+                        ):
+                            for warning in custom_warnings:
+                                st.warning(warning)
+                if catalog is not None and not custom_errors:
+                    summary = mv_preview(sc, catalog, adapter)
                     c1, c2, c3 = st.columns(3)
                     c1.metric(
-                        "HV input per 1 kWh transformed MV",
-                        f"{summary['transformation_hv_per_mv_kwh']:.6f} kWh",
+                        "HV kWh per transformed MV kWh",
+                        f"{summary['transformation_hv_per_mv_kwh']:.7f}",
                     )
                     c2.metric(
-                        "MV self-input / kWh",
-                        f"{summary['mv_self_input_kwh_per_kwh']:.6f} kWh",
+                        "MV self-input (kWh/kWh)",
+                        f"{summary['mv_self_input_kwh_per_kwh']:.7f}",
                     )
                     c3.metric(
-                        "Original direct MV share rerouted through HV",
-                        f"{summary['original_direct_mv_kwh_replaced']:.6f} kWh",
+                        "Direct MV generation rerouted",
+                        f"{summary['original_direct_mv_kwh_replaced']:.7f}",
                     )
-                    st.caption(
-                        f"Adapter geography: {summary['adapter_region']}. These are extracted "
-                        "region-specific coefficients, not hard-coded Ontario defaults. "
-                        "Custom mode assumes all declared generation is supplied at HV."
+                    st.dataframe(
+                        pd.DataFrame(summary["processes"]),
+                        use_container_width=True, hide_index=True,
                     )
-                    st.dataframe(pd.DataFrame(summary["processes"]),
-                                 use_container_width=True, hide_index=True)
-                    a, b = st.columns(2)
-                    with a:
-                        st.download_button(
-                            "1 · Download MV baseline replication ZIP",
-                            mv_package(sc, catalog, mv_adapter, replicate=True),
-                            file_name="electricity_MV_BASELINE_REPLICATION_openLCA.zip",
-                            mime="application/zip",
-                        )
-                    with b:
-                        st.download_button(
-                            "2 · Download customized MV ZIP",
-                            mv_package(sc, catalog, mv_adapter, replicate=False),
-                            file_name="electricity_MV_CUSTOM_openLCA.zip",
-                            mime="application/zip", type="primary",
-                        )
-                    st.info(
-                        "IMPORT TEST FIRST: Import the replication ZIP into a copy of "
-                        "the exact restored .zolca without overwriting existing datasets. "
-                        "Compare original and replicated MV product-system LCIA. Only "
-                        "after they agree should you import and assess the custom MV ZIP. "
-                        "Verify self-links, providers, and no provincial generation leakage."
+                    st.download_button(
+                        "Download customized MV JSON-LD ZIP",
+                        mv_package(sc, catalog, adapter, replicate=False),
+                        file_name="electricity_MV_CUSTOM_openLCA.zip",
+                        mime="application/zip", type="primary",
                     )
                     st.warning(
-                        "Custom MV creates four foreground processes. The MV market's direct "
-                        "generation is rerouted through the HV pathway. HV network exchanges "
-                        "are preserved from the regional adapter, but import/export boundaries "
-                        "and generation representativeness still require explicit review."
+                        "Instructor-recorded replication does NOT verify regional "
+                        "representativeness. Custom mode routes ALL modeled generation "
+                        "through HV, using the source region's network as a proxy."
                     )
-        else:
-            st.warning("Low-voltage export is not supported. Select HV or MV in Tab 1.")
+            st.session_state["mv_adapter_data"] = adapter
     else:
-        st.warning("Create a scenario in Tab 1 first.")
+        st.warning("Low-voltage export is not supported. Select HV or MV in Tab 1.")
 
     st.divider()
     st.subheader("Scenario documentation")
@@ -725,14 +931,14 @@ with tab_help:
 
 1. **Build supply mix (Tab 1):** Choose a scenario, enter generation shares, sources, year and the generation/consumption boundary. Review share validation and scientific advisories.
 2. **Select providers (Tab 2):** Search the instructor-approved ecoinvent 3.12 cut-off provider catalog. Choose suitable **generation** processes (not pre-mixed electricity markets) and document each selection.
-3. **Export to openLCA (Tab 3):** For HV, download the generation-mix ZIP. For MV, provide a locally reviewed region adapter, download the baseline replication ZIP, then the customized MV ZIP. Download scenario documentation separately.
+3. **Export to openLCA (Tab 3):** For HV, download the generation-mix ZIP. For MV, upload a local extracted adapter, download and test the baseline replication without a generator catalog, record source review and two-category openLCA LCIA comparison, and only then unlock custom export. Download scenario documentation separately.
 4. **Calculate in openLCA:** Restore the same class `.zolca`, import the JSON-LD ZIP, verify provider links and calculate the complete product-system LCI/LCIA. Compare the custom supply scenario with your existing grid baseline.
 
 ### Key cautions
 
 - A regional **generation** mix is not automatically the electricity mix **consumed** at a site; imports, exports, losses and interzonal transfers can matter.
 - The tool neither retrieves official regional grid statistics nor redistributes licensed ecoinvent inventories.
-- MV export is a **v0.9 pilot** requiring an instructor-reviewed local adapter with the same ecoinvent 3.12 cut-off UUIDs. It is not validated solely by generating a ZIP. Low voltage remains unsupported.
+- MV export is a **v0.9 pilot**. Baseline replication needs an extracted region adapter; customized export requires reviewed source links, instructor-entered LCIA replication evidence and an approved generation catalog. An importable ZIP alone is not verification. Low voltage remains unsupported.
 - MV customization preserves source-market network exchanges but routes all scenario generation through HV; direct MV generation, imports and proxies must be reviewed.
 - Never publish or upload exchange-bearing MV adapters to a cloud app without confirming ecoinvent licensing permissions.
 - An instructor-approved provider catalog checks dataset references, not whether regional generation assumptions are representative.

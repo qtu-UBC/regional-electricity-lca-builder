@@ -85,92 +85,129 @@ For other regions, specify the exact short code shown in your database:
 
 If the lookup still fails, inspect the **Candidate descriptors** printed in
 the error, confirm the active .zolca and IPC port, and do not approve or guess
-a supplier. This lookup correction does not establish successful MV network
-validation; subsequent approval and LCIA replication are still mandatory.
+a supplier. This lookup correction does not establish successful MV network validation;
+source review and openLCA LCIA replication remain necessary before custom export.
 
-## 3. Instructor review and approval
+## 3. Three-stage review workflow (no blanket scientific approval)
 
-The generated adapter has approved=false. Confirm in openLCA:
+The region adapter has three distinct, local stages:
 
-- Correct geography, ecoinvent version, cut-off model and market UUIDs.
-- All three reference outputs and compatible HV/MV flow-property/unit UUIDs.
-- All important input provider links resolve against the restored .zolca.
-- Transformation input comes from the selected HV market.
-- HV and MV market self-inputs, if present, point to the corresponding
-  source market.
-- Direct MV generators and any unusual cross-voltage or import flows.
-- Network infrastructure, SF6 inputs and elementary emissions.
-- Full-precision amounts, including uncertainties if Monte Carlo is planned.
-- Whether **all-HV generation** is defensible for the specific scenario.
+| Stage | Meaning | Allowed action |
+|---|---|---|
+| extracted | Original three ecoinvent processes/exchanges retrieved; no scientific review yet | Inspect topology and export baseline replication ZIP |
+| reviewed_for_testing | Instructor explicitly confirms source process identifiers, input links and exchange assumptions have been inspected | Enter openLCA comparison evidence; baseline replication still available |
+| replication_validated | Instructor enters matching LCIA results for original and replicated 1 kWh MV markets, using the same LCIA method, and confirms local provider linking | **May** unlock custom MV export, when an approved generator catalog and scenario are also present |
 
-Set approved=true only after review, retaining approved_by and reviewed_date.
-Save to mv_adapter_APPROVED_LOCAL.json.
+**Important:** The third stage represents **instructor-entered evidence** of
+matching LCIA results; Streamlit cannot independently verify the original
+openLCA calculations. It does **not** validate the actual Northwest
+generation mix, imported/exported power flows, or suitability of Ontario
+network proxies for a particular SAF facility.
 
-The v0.9 validator blocks adapters with unfamiliar cross-voltage input
-patterns, missing input providers, mismatched product flows, duplicate
-process identities, or non-zero user-defined simplified loss scaling.
+The new extractor writes review_status = extracted. An existing file
+mv_adapter_REVIEW_LOCAL.json with legacy approved=false or approved=true
+is also treated as extracted; the old flag no longer unlocks the custom
+export.
 
-## 4. Run Streamlit locally and export
+Before recording **reviewed for testing**, check in openLCA:
 
-      streamlit run app.py
+- Dataset identity: exact Ontario HV market, HV-to-MV transformer, MV market,
+  and source ecoinvent 3.12 cut-off .zolca.
+- All three quantitative reference outputs, matching HV/MV product flows,
+  units, locations and UUIDs.
+- HV market self-input links to the HV market; transformer uses HV market;
+  MV market uses transformer; MV self-input links to MV market.
+- Direct MV generation, high-voltage import providers, network
+  infrastructure, non-electric inputs and elementary emissions.
+- Transformation/self-consumption values and any potential proxy limitations.
 
-1. **Tab 1:** Select a supply scenario. Set electricity delivery level to
-   medium. The generic loss adjustment is disabled at zero.
-2. **Tab 2:** Upload the instructor-approved generator provider catalog.
-   Select one provider for each active generation technology; document the
-   reason for each choice.
-3. **Tab 3:** Upload the reviewed **local** regional MV adapter.
-4. Review extracted transformation, self-consumption and direct-MV
-   coefficients. Confirm their geography and the all-HV assumption.
-5. Download **MV baseline replication ZIP** and **customized MV ZIP**.
-   Both ZIPs need a database with matching source UUIDs.
+Record reviewer's name and notes in **Tab 3** and download the
+mv_adapter_REVIEWED_LOCAL.json file. No manual editing of an approval flag
+is required.
 
-Do not upload the exchange-bearing adapter to a public service without
-explicitly checking ecoinvent licensing and deployment data controls.
+## 4. Local Streamlit sequence
 
-### Export contents
+    streamlit run app.py
 
-**Replication export — 3 foreground processes**
+1. **Tab 1:** Choose a scenario and select electricity delivery level
+   **medium**. Generic simplified loss scaling is disabled at zero.
+2. **Tab 3 (no provider catalog needed):** Upload the local extracted
+   mv_adapter_REVIEW_LOCAL.json. Confirm source topology and download
+   **MV baseline replication ZIP** immediately.
+3. Import baseline replication into a **test copy** of the same licensed
+   .zolca with **Never update existing datasets**. Inspect three
+   processes' provider UUIDs, reference outputs and network exchanges.
+4. Record **reviewed for testing** locally in Tab 3 with a reviewer,
+   checklist attestation and explanatory notes. You can complete the review
+   before or after the baseline ZIP import. Download the reviewed local JSON.
+5. Calculate **original Ontario MV** and **replicated Ontario MV**
+   product systems in openLCA, both at **1 kWh MV** with the identical
+   LCIA method and characterization factors.
+6. In Tab 3 enter actual results for **climate change / GWP plus at least
+   one other distinct LCIA category**, their units, method/version,
+   reviewer, and notes confirming provider-link checks. The app checks
+   numeric agreement within a **recorded relative tolerance** (default
+   0.1%; absolute floor 1e-12 unit).
+7. Download the **replication-validated local adapter JSON**, which
+   includes the original/reproduced values, reviewer/date, source graph
+   fingerprint and replicated process UUID. Keep it local.
+8. **Tab 2:** Configure the separate instructor-approved generation
+   provider catalog and choose reviewed providers for active technologies.
+9. **Tab 3:** Upload the validated adapter JSON and select your scenario;
+   the customized MV ZIP is available only when both the recorded replication
+   and approved generator choices pass the guards.
 
-- Copy of HV market, with original suppliers and self-loop redirected.
-- Copy of HV-to-MV transformation, linked to the copied HV market.
-- Copy of MV market, with original direct generation, network burdens,
-  elementary exchanges and MV self-loop retained and locally redirected.
+Changing source exchange coefficients, providers, reference products or
+regional process UUIDs changes the fingerprint and invalidates the stored
+replication record. A new original-versus-replica comparison is required.
+Switching to another generation scenario does not invalidate an unchanged
+network-adapter replication, but scientifically representative generation
+and site-delivery assumptions still need separate review.
 
-**Custom export — 4 foreground processes**
+**License note:** The MV adapter contains ecoinvent exchange amounts and
+can be license-restricted. Keep it, its source extracts, and the manually
+recorded evidence on an authorized local machine. Do not commit them to a
+public Git repository or upload them to public Streamlit Cloud by default.
 
-- New HV generator mix with instructor-reviewed providers.
-- Adapted HV market: retains infrastructure/other exchanges/self-loop,
-  replaces external HV electricity sources with the custom HV mix.
-- Adapted transformation: retains the local HV input coefficient and
-  supplies MV electricity from the custom HV market.
-- Adapted MV market: removes direct MV generation, moves its amount to
-  the transformed supply input, retains network/elementary exchanges and
-  redirects its self-consumption to the custom MV market.
+## 5. Exactly what is copied and what is tested
 
-**Limitations:** The converter copies exchange amounts and explicit
-providers, not all process metadata, exchange costs, parameter formulas,
-uncertainty distributions, documentation, or database annotations.
-An LCIA replication is required; Monte Carlo equivalence is not asserted.
-The purpose is a reproducible foreground sensitivity scenario, not silently
-replacing ecoinvent background data or certifying a Northwest grid mix.
+**Baseline replication ZIP — 3 foreground processes, no provider catalog**
 
-## 5. Baseline replication validation — required gate
+- Copy of HV market, original external suppliers plus internal HV self-loop
+  redirected to the copy.
+- Copy of HV-to-MV transformer, original input coefficient linked to copied
+  HV market.
+- Copy of MV market, original direct MV generators/infrastructure/emissions
+  plus self-loop and transformed-MV links redirected to copied processes.
 
-1. Import the replication ZIP to a **test copy** of the exact class .zolca:
-   **Import → Linked Data (JSON-LD)**; **Never update existing datasets**.
-2. Inspect each copied process's reference flow, non-electric exchanges,
-   default providers and self-loop. Run openLCA linking checks.
-3. Calculate a product system for 1 kWh of original regional MV market
-   electricity and the replicated MV market with the **same LCIA method**.
-4. Compare GWP and at least one other category. Record absolute and
-   relative differences and investigate any unexplained mismatch.
-5. **Do not interpret the custom MV result until replication passes.**
-6. Then import the custom ZIP, verify no original-region grid electricity
-   remains in the custom upstream path, and calculate the SAF sensitivity.
+Baseline process UUIDs depend **only on the adapter source-data fingerprint**,
+not on review status, generator choice or scenario. This means the same
+baseline ZIP can be compared before and after documenting review.
 
-Static CI tests check topology and numeric transformations with
-**synthetic example data**, not licensed ecoinvent data or live openLCA LCIA.
+**Custom MV ZIP — 4 foreground processes, gated**
+
+- New HV generator mix built from selected, approved provider references.
+- Adapted HV market retaining network infrastructure, emissions and HV
+  self-consumption; replacing all original external HV electricity supply
+  with custom generation.
+- Adapted HV-to-MV transformation retaining the source coefficient.
+- Adapted MV market retaining self-consumption and non-electric burdens,
+  but reallocating direct MV generation to the HV transformation pathway.
+  This is an explicit **all-HV** assumption, not an observed regional fact.
+
+**Computational check:** Compare original vs replicated 1 kWh MV product
+system with identical LCIA method for GWP and another category. Record
+numerical differences and investigate any inconsistency. If the values
+do not match, custom MV export remains locked. The app checks numeric
+agreement using values entered by the instructor; it does not run
+ecoinvent/openLCA LCIA itself.
+
+**Remaining limitations:** The exporter copies exchange amounts, flows,
+units and explicit providers, but not every parameter formula, uncertainty
+distribution, exchange cost or source process annotation. Even an exact
+deterministic LCIA replication does not establish Monte Carlo equivalence,
+physical power flow tracing, site-specific network losses, or scientific
+representativeness of local generation as electricity consumed.
 
 ## 6. Ontario coefficients observed in the user's local .zolca
 

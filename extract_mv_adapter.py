@@ -141,19 +141,21 @@ def extract_adapter(descriptors, fetch, region: str, database_label: str,
         }
     return {
         "adapter_version": 1,
-        "approved": False,
-        "approved_by": reviewer,
-        "reviewed_date": date.today().isoformat(),
+        "review_status": "extracted",
+        "extracted_by": reviewer,
+        "extracted_date": date.today().isoformat(),
         "database_label": database_label,
         "system_model": "cut-off",
         "region": region,
         "extraction_truncated": False,
         "processes": processes,
         "review_note": (
-            "UNAPPROVED. Contains licensed ecoinvent exchange amounts: keep private. "
+            "EXTRACTED ONLY, NOT SCIENTIFICALLY APPROVED. Contains licensed "
+            "ecoinvent exchange amounts: keep private. "
             "Review exact processes, supplier links, reference flows, losses, "
             "direct MV generation and infrastructure; run baseline replication. "
-            "Mark approved=true ONLY after instructor review. "
+            "Use Streamlit's source-link review and LCIA replication steps; "
+            "do not mark this model validated without actual openLCA comparison. "
             "This adapter supports one HV market -> HV/MV transformer -> MV market topology."
         ),
     }
@@ -180,11 +182,11 @@ def main():
         args.region, args.database_label, args.reviewer, args.region_code)
     Path(args.out).write_text(json.dumps(result, indent=2, ensure_ascii=False),
                               encoding="utf-8")
-    print(f"Wrote UNAPPROVED local-only MV adapter: {args.out}")
+    print(f"Wrote EXTRACTED local-only MV adapter: {args.out}")
     for key, proc in result["processes"].items():
         print(f"{key}: {proc['name']} [{proc['location']}] "
               f"{len(proc['exchanges'])} exchanges; UUID {proc['id']}")
-    print("Review inputs and default providers, then approve locally. DO NOT add this file to public Git.")
+    print("Next: run local Streamlit and export the baseline replication. No generator-provider approval needed for that. DO NOT add this file to public Git.")
 
 
 if __name__ == "__main__":
