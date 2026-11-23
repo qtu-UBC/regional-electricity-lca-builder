@@ -1,7 +1,12 @@
-# Medium-voltage customization — v0.9 instructor pilot
+# Medium-voltage customization — v0.9 technical reference
 
-**Status:** JSON-LD builder and synthetic tests; NOT YET validated by importing
-into the licensed class ecoinvent 3.12 cut-off .zolca and reproducing LCIA.
+**Status (23 November 2026):** The **Ontario 3.12 cut-off pilot** has now been
+imported into the instructor's licensed openLCA installation. Original and
+three-process replicated Ontario MV deterministic LCIA values matched at
+displayed precision with ReCiPe 2016 v1.03 midpoint (H), and the four-process
+custom Northwest MV package imported and calculated successfully. This is
+one **user-performed local case-study validation**, not independent formal
+certification, uncertainty equivalence, or validation for other regions.
 The workflow is region-agnostic for the **supported topology**, but it does
 not assert that all ecoinvent regions have the same process structure.
 
@@ -31,6 +36,12 @@ whether it is appropriate for the site and generation mix.
 make the client's local generation data a measured consumption mix. The
 model does not resolve actual power flows, interzonal transfers, power
 plant connection voltages or site-specific network characteristics.
+
+For a streamlined classroom sequence, **start with
+[the instructor runbook](INSTRUCTOR_CLASSROOM_RUNBOOK.md)**. That document
+places the necessary app switches, files and openLCA checks in a single order.
+The remainder of this file is the technical MV architecture and validation
+reference.
 
 ## 1. Local prerequisites
 
@@ -64,8 +75,8 @@ uploads data to a public Streamlit app.
 contains **ecoinvent exchange coefficients, including elementary exchanges**.
 Keep it on a licensed local workstation and **do not commit it to GitHub or
 upload it to the public Streamlit instance by default**. Check your license
-before any redistribution or hosted deployment. The gitignore protects
-mv_adapter_*.json, but check staged files yourself.
+before any redistribution or hosted deployment. The .gitignore excludes local/ and root-level mv_adapter_*.json files, but
+check staged files yourself.
 
 If the region has multiple matching activities or uses another structure,
 the extractor refuses to guess. Inspect the source market in openLCA.
@@ -77,12 +88,12 @@ and may use a short geography code rather than `Canada, Ontario`. The extractor
 accepts that formatted title and recognizes the Ontario `CA-ON` alias.
 For other regions, specify the exact short code shown in your database:
 
-    python extract_mv_adapter.py \
+    python -m instructor.extract_mv_adapter \
       --region "Canada, Alberta" \
       --region-code "CA-AB" \
       --database-label "ecoinvent 3.12 cut-off (class shared .zolca)" \
       --reviewer "Course instructor" \
-      --out mv_adapter_REVIEW_LOCAL.json
+      --out local/mv_adapter_REVIEW_LOCAL.json
 
 If the lookup still fails, inspect the **Candidate descriptors** printed in
 the error, confirm the active .zolca and IPC port, and do not approve or guess

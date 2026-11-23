@@ -8,6 +8,20 @@ An LCI database may lack a current, representative electricity supply mix for th
 
 **Caution:** The tool does not supply ecoinvent inventory data, retrieve electricity statistics, verify a local generation mix against consumption, or certify results.
 
+## Start here (classroom workflow)
+
+- **Instructor:** [Classroom runbook — complete preclass and validation sequence](docs/INSTRUCTOR_CLASSROOM_RUNBOOK.md)
+- **Student:** [Northwest Ontario MV lab — import, calculate and interpret](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md)
+- **Technical details:** [Regional MV adapter and validation](docs/MEDIUM_VOLTAGE_v0.9.md)
+
+**Recommended classroom split:** instructor prepares the validated MV JSON-LD
+ZIP locally once; students use the student app for scenario/provider reasoning
+and openLCA for impact calculation. The instructor-reviewed, exchange-bearing
+MV adapter stays local and is **not distributed to students or uploaded to
+public Streamlit by default**. If students make a different provider choice,
+they need a **different custom ZIP**; changing the Tab 2 dropdown does not
+change a previously prepared package.
+
 ## Four-tab student workflow
 
 1. **Build supply mix:** Choose the hypothetical example, the client-proposed IESO Northwest 2025 generation example, or a custom scenario. Edit technology shares and sources; review arithmetic validation and provenance advisories. No emission factors or GWP calculations are required.
@@ -23,7 +37,7 @@ In openLCA 2, restore the matching licensed class `.zolca`; choose **Import → 
 
 ## Instructor preparation (local)
 
-**[Instructor setup and catalog-review guide](docs/SETUP_v0.4.md)** (the filename is retained for backwards-compatible links; the content describes the latest workflow).
+**[Instructor classroom runbook](docs/INSTRUCTOR_CLASSROOM_RUNBOOK.md)** (current recommended sequence). [Legacy setup notes](docs/SETUP_v0.4.md) are retained for historical reference.
 
 1. Restore the **same ecoinvent 3.12 cut-off `.zolca`** that is distributed to students and open it in openLCA.
 2. Start **Tools → Developer Tools → IPC Server** (typically port 8080).
@@ -42,7 +56,7 @@ In openLCA 2, restore the matching licensed class `.zolca`; choose **Import → 
 6. Pilot an exported JSON-LD ZIP against the restored class database, check provider UUID links and calculate a test product system before teaching with it.
 7. For **medium voltage**, follow the [v0.9 MV instructor pilot guide](docs/MEDIUM_VOLTAGE_v0.9.md): extract a **local** source adapter, export baseline replication without a generator library, review its source links, compare original and replicated MV LCIA results, save the resulting local validation record, and only then configure custom generation providers.
 
-The catalog's UUIDs are tied to the particular converted openLCA database. Different versions, system models or conversions may not use the same identifiers. The public Streamlit app never connects to the instructor's IPC server.
+The catalog's UUIDs are tied to the particular converted openLCA database. Different versions, system models or conversions may not use the same identifiers. The public Streamlit app never connects to the instructor\'s IPC server.
 
 **Licensing:** An MV adapter contains process exchange amounts and may be licensed ecoinvent LCI. Keep the adapter and licensed database on the local instructor workstation by default, do not commit adapter JSON to this repository, and do not upload it to public Streamlit without verified redistribution permissions. The optional upload field is intended for licensed/local deployments. Synthetic tests and public code contain no source-database exchanges.
 
@@ -77,11 +91,13 @@ compatibility launchers for earlier tutorials. New commands use
 library to `local/` (without placing those data in Git). You do not need to
 re-extract any datasets.
 
-**Current student tutorial:** [Northwest exercise (Markdown)](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md);
-[Word edition](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.docx);
-[scenario workbook](tutorials/Electricity_Scenario_Student_Template.xlsx).
-The tutorial and workbook are HV-oriented; the [MV pilot instructor guide](docs/MEDIUM_VOLTAGE_v0.9.md)
-governs the added v0.9 MV replication procedure.
+**Current student tutorial:** [Updated Northwest MV Markdown lab](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md)
+and [scenario workbook](tutorials/Electricity_Scenario_Student_Template.xlsx).
+The historical Word edition stored in this repository was written for the
+earlier HV-only workflow; **use the current Markdown guide for the MV lab**.
+Follow the [instructor runbook](docs/INSTRUCTOR_CLASSROOM_RUNBOOK.md)
+for preclass packaging and validation. A refreshed Word edition is available
+separately from the assistant's generated classroom handout.
 
 ### Local instructor provider review
 

@@ -1,3 +1,17 @@
+# Current classroom setup: use the new runbook (23 November 2026)
+
+The canonical, pilot-tested **medium-voltage** classroom sequence is now in
+[Instructor classroom runbook](INSTRUCTOR_CLASSROOM_RUNBOOK.md). It covers
+one-time local extraction, reusable instructor provider review, original
+Ontario MV LCIA replication, a four-process custom scenario, and the
+recommended **prepared-ZIP student classroom mode**.
+
+For the active [student MV lab](../tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md)
+follow that runbook. The material below is maintained as historical setup
+context and includes older high-voltage-only examples.
+
+---
+
 # Current instructor workflow and folder layout (v1.0)
 
 The active student app still starts with `streamlit run app.py`. Instructor-only
