@@ -21,7 +21,13 @@
 
 ### Learning outcomes
 
-After the lab, you should be able to (1) construct and criticize a regional generation scenario; (2) justify compatible electricity provider choices; (3) inspect a four-process HV→MV supply chain in openLCA; (4) calculate two LCIA categories using the same functional unit; and (5) explain why a local generation scenario cannot automatically be treated as a facility's consumed electricity.
+By the end of this tutorial, students should be able to:
+
+1. **Evaluate the representativeness of regional electricity data.** Distinguish electricity generation mixes from consumption mixes and identify limitations related to geographic boundaries, imports and exports, reference year, and data-source reliability.
+2. **Justify the selection of background LCI datasets.** Match electricity generation technologies to appropriate ecoinvent processes based on technology, geography, reference products, and multifunctionality (including biomass cogeneration).
+3. **Explain the construction of a regional electricity supply model.** Describe how generation processes, high-voltage markets, voltage transformation, transmission infrastructure, and electricity self-consumption are connected to supply 1 kWh of medium-voltage electricity.
+4. **Calculate and compare environmental impacts using LCA software.** Use openLCA to compare the original Ontario medium-voltage electricity market with the customized Northwest scenario under a consistent functional unit, system boundary, and LCIA method.
+5. **Interpret environmental trade-offs and assess modeling uncertainty.** Use contribution analysis to identify key drivers of climate-change and other impacts, explain why generation shares differ from impact contributions, and evaluate the implications of uncertain regional and technology assumptions.
 
 ## 1. Scenario input — Northwest Ontario, 2025
 
