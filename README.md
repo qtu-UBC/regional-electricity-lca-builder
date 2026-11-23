@@ -93,11 +93,13 @@ re-extract any datasets.
 
 **Current student tutorial:** [Updated Northwest MV Markdown lab](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md)
 and [scenario workbook](tutorials/Electricity_Scenario_Student_Template.xlsx).
-The historical Word edition stored in this repository was written for the
-earlier HV-only workflow; **use the current Markdown guide for the MV lab**.
+The prior **HV-only Word handout** was archived to
+[archive/legacy](archive/legacy/IESO_Northwest_2025_HV_Student_Tutorial_OLD.docx)
+to prevent accidentally assigning outdated instructions. Use the updated MV
+Markdown guide or the refreshed Word handout supplied separately for class.
 Follow the [instructor runbook](docs/INSTRUCTOR_CLASSROOM_RUNBOOK.md)
-for preclass packaging and validation. A refreshed Word edition is available
-separately from the assistant's generated classroom handout.
+for preclass packaging and validation. A refreshed student Word handout and an instructor Word handout were
+provided separately for classroom distribution.
 
 ### Local instructor provider review
 
