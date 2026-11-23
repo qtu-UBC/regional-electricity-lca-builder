@@ -9,7 +9,7 @@ from types import SimpleNamespace as Obj
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
 from openlca_jsonld import validate_catalog, make_process, package, package_preview
-from instructor_catalog import make_catalog
+from archive.legacy.instructor_catalog import make_catalog
 
 
 def uid(n): return str(uuid.UUID(int=n))

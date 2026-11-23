@@ -1,3 +1,34 @@
+# Current instructor workflow and folder layout (v1.0)
+
+The active student app still starts with `streamlit run app.py`. Instructor-only
+scripts are now under `instructor/`, example inputs under `data/`, tutorials
+under `tutorials/`, and local approved/extracted JSON under ignored `local/`.
+The old root extraction commands remain compatible, but prefer:
+
+```bash
+mkdir -p local
+python -m instructor.extract_provider_library \
+  --database-label "ecoinvent 3.12 cut-off (class shared .zolca)" \
+  --reviewer "Course instructor" \
+  --out local/provider_library_REVIEW.json
+streamlit run instructor/review_app.py
+```
+
+In the **local-only instructor review UI**, upload the extracted provider
+library, select a limited set of reviewed generators and optional baseline
+markets, record explicit per-provider rationales and review scope, and download
+`provider_library_APPROVED_LOCAL.json`. Keep it under `local/`. Then in the
+student app use **Tab 2** to select from approved candidates. Source-process
+approval is not verification of regional generation or site consumption.
+
+For MV, the extracted adapter and replication validation are a separate workflow;
+see [MEDIUM_VOLTAGE_v0.9.md](MEDIUM_VOLTAGE_v0.9.md).
+
+The historical instructions below are retained for previous versions and may
+use older commands, output locations and tab counts.
+
+---
+
 # Current student interface (v0.7)
 
 The student-facing Streamlit app is organized into **four tabs**:

@@ -1,22 +1,32 @@
-# macOS
+# Python and macOS
 .DS_Store
-
-# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
 venv/
 .env
+.ipynb_checkpoints/
 
-# Streamlit secrets
+# Private Streamlit configuration
 .streamlit/secrets.toml
 
-# Local instructor configuration
-provider_catalog_*.json
-provider_library_*.json
-
-# Temporary files
+# Local licensed background databases and generated working files
+*.zolca
+/local/
+/outputs/
 *.log
 *.tmp
-.ipynb_checkpoints/mv_adapter_*.json
+
+# Legacy instructor outputs in repo root (pre-reorganization compatibility)
+provider_catalog_*.json
+provider_library_*.json
+mv_adapter_*.json
+electricity_*_openLCA.zip
+electricity_*_IMPORT.zip
+
+# Locally created approval/validation records (keep private)
+*APPROVED_LOCAL.json
+*REVIEW_LOCAL.json
+*REVIEWED_LOCAL.json
+*REPLICATION_VALIDATED_LOCAL.json

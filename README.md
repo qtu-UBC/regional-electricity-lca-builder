@@ -1,4 +1,4 @@
-# Regional Electricity LCA Builder — v0.9 (MV pilot)
+# Regional Electricity LCA Builder — v1.0 instructor workflow (MV pilot)
 
 A student-friendly Streamlit tool for constructing a documented **regional electricity supply scenario** and exporting **custom high-voltage or region-adapted medium-voltage foreground processes** for openLCA 2. The exporter targets **ecoinvent 3.12 cut-off** and instructor-reviewed references from the same restored class `.zolca`. **MV export is a pilot requiring local source-database extraction and openLCA replication validation**.
 
@@ -30,14 +30,15 @@ In openLCA 2, restore the matching licensed class `.zolca`; choose **Import → 
 3. On your computer, install `requirements_instructor.txt` and run:
 
    ```bash
-   python extract_provider_library.py \
+   mkdir -p local
+   python -m instructor.extract_provider_library \
      --database-label "ecoinvent 3.12 cut-off (class shared .zolca)" \
      --reviewer "Course instructor" \
-     --out provider_library_REVIEW.json
+     --out local/provider_library_REVIEW.json
    ```
 
-4. Review the candidate `entries` (generation providers) and `markets` (baseline markets). Verify technology, location, reference electricity flow, voltage and CHP/coproduction treatment. **All entries start unapproved.** Mark only defensible candidates `"approved": true`, then approve the library as a whole.
-5. Subject to institutional and ecoinvent license terms, upload approved metadata as a **session JSON** in Tab 2 or configure the private `provider_library_json` Streamlit secret. Never upload your `.zolca` or licensed inventory exchanges to a public repository.
+4. Run the **local instructor review UI**: `streamlit run instructor/review_app.py`. Upload `local/provider_library_REVIEW.json`, filter by geography/technology, explicitly select candidate generators and record a reason for each. Optional baseline markets can be reviewed separately. Download `provider_library_APPROVED_LOCAL.json` to `local/`. **Nothing is auto-approved.**
+5. Subject to institutional and ecoinvent license terms, upload the locally approved JSON as a **session JSON** in Tab 2 or configure the private `provider_library_json` Streamlit secret. Never upload your `.zolca` or licensed inventory exchanges to a public repository.
 6. Pilot an exported JSON-LD ZIP against the restored class database, check provider UUID links and calculate a test product system before teaching with it.
 7. For **medium voltage**, follow the [v0.9 MV instructor pilot guide](docs/MEDIUM_VOLTAGE_v0.9.md): extract a **local** source adapter, export baseline replication without a generator library, review its source links, compare original and replicated MV LCIA results, save the resulting local validation record, and only then configure custom generation providers.
 
@@ -45,24 +46,65 @@ The catalog's UUIDs are tied to the particular converted openLCA database. Diffe
 
 **Licensing:** An MV adapter contains process exchange amounts and may be licensed ecoinvent LCI. Keep the adapter and licensed database on the local instructor workstation by default, do not commit adapter JSON to this repository, and do not upload it to public Streamlit without verified redistribution permissions. The optional upload field is intended for licensed/local deployments. Synthetic tests and public code contain no source-database exchanges.
 
-## Repository contents
+## Repository layout
 
-| File | Role |
+The entry point remains `streamlit run app.py`. Core app modules stay at the
+root so existing imports, test scripts and Streamlit Cloud deployment keep working.
+
+| Path | Purpose |
 |---|---|
-| `app.py` | Four-tab Streamlit UI and two distinct export types |
-| `grid_core.py` | Scenario-share validation, CSV parsing, methodology reports and documentation exports; obsolete carbon-factor calculations have been removed |
-| `provider_library.py` | Instructor approval guards, region ranking, generator classification and explicit provider selections |
-| `extract_provider_library.py` | Read-only IPC discovery of reference-electricity suppliers from restored local `.zolca` |
-| `openlca_jsonld.py` | Native openLCA JSON-LD HV foreground process ZIP |
-| `extract_mv_adapter.py` | Local read-only extraction of three regional HV/MV processes, unapproved by default |
-| `mv_market.py` | Guarded regional MV topology, baseline replication, adapted MV JSON-LD exporter |
-| `docs/MEDIUM_VOLTAGE_v0.9.md` | MV instructor review, local extraction, license and LCIA validation workflow |
-| `instructor_catalog.py`, `openlca_bridge.py` | Legacy instructor-only approaches, not needed in the main student workflow |
-| `tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md` | Current worked student tutorial |
-| `data/` | Illustrative mixes and templates; no licensed LCI |
-| `tests/` | Python validation, exporter checks and Streamlit startup smoke test |
+| `app.py` | Student-facing four-tab Streamlit entry point |
+| `grid_core.py`, `provider_library.py`, `openlca_jsonld.py`, `mv_market.py` | Active domain logic and openLCA exporters |
+| `instructor/extract_provider_library.py` | Local IPC generator and market metadata extraction |
+| `instructor/extract_mv_adapter.py` | Local IPC HV/MV source adapter extraction |
+| `instructor/review_app.py` | **Reusable, local-only** instructor provider review UI |
+| `instructor/review_providers.py` | Reusable approval validation and optional CLI |
+| `tutorials/` | Classroom tutorials and scenario workbook |
+| `docs/` | Instructor setup, review workflow and MV pilot documentation |
+| `data/` | Public illustrative scenario and input templates |
+| `tests/` | Synthetic test fixtures and regression checks |
+| `archive/legacy/` | Historical standalone bridge and old catalog builder (not student workflow) |
+| `local/` | **Ignored private workspace** for review JSON, validated adapters and exported ZIPs; create locally with `mkdir -p local` |
 
-**Existing HV student materials (v0.8-compatible):** The [Word Northwest tutorial](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.docx), [Markdown tutorial](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md), and [Excel scenario workbook](Electricity_Scenario_Student_Template.xlsx) all follow the four-tab openLCA unit-process workflow. The workbook includes a formula-checked Northwest example, an editable supply mix, a provider-selection log, an import checklist and source notes. No GWP-screening exercises are included.
+The root-level `extract_provider_library.py` and `extract_mv_adapter.py` are
+compatibility launchers for earlier tutorials. New commands use
+`python -m instructor.extract_provider_library` and
+`python -m instructor.extract_mv_adapter`.
+
+**For your existing workstation files:** move locally extracted
+`provider_library_REVIEW.json`, `mv_adapter_REVIEW_LOCAL.json`,
+`mv_adapter_REPLICATION_VALIDATED_LOCAL.json` and the approved provider
+library to `local/` (without placing those data in Git). You do not need to
+re-extract any datasets.
+
+**Current student tutorial:** [Northwest exercise (Markdown)](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.md);
+[Word edition](tutorials/IESO_Northwest_2025_Streamlit_Student_Tutorial.docx);
+[scenario workbook](tutorials/Electricity_Scenario_Student_Template.xlsx).
+The tutorial and workbook are HV-oriented; the [MV pilot instructor guide](docs/MEDIUM_VOLTAGE_v0.9.md)
+governs the added v0.9 MV replication procedure.
+
+### Local instructor provider review
+
+Run on your authorized local workstation:
+
+```bash
+mkdir -p local
+python -m instructor.extract_provider_library \
+  --database-label "ecoinvent 3.12 cut-off (class shared .zolca)" \
+  --reviewer "Course instructor" \
+  --out local/provider_library_REVIEW.json
+streamlit run instructor/review_app.py
+```
+
+Upload the review JSON to the **local instructor UI**, filter by region and
+technology, mark only suitable generation processes, enter a specific written
+review reason for each and acknowledge the review scope. Download the approved
+JSON to `local/` and use it in student Tab 2. The interface works with any
+supported ecoinvent geography from the extracted library; it is **not** a
+Northwest-specific auto-approval script. You can also use
+`python -m instructor.review_providers --help` for an explicit selection-file
+CLI workflow. Do not publicly host the instructor UI or license-restricted
+provider metadata by default.
 
 ## Deployment and testing
 
@@ -70,7 +112,7 @@ Deploy `app.py` with `requirements.txt` on Streamlit Community Cloud. The cloud 
 
 ```bash
 python -m unittest discover -s tests -v
-python -m py_compile app.py grid_core.py openlca_jsonld.py provider_library.py extract_provider_library.py mv_market.py extract_mv_adapter.py
+python -m py_compile app.py grid_core.py openlca_jsonld.py provider_library.py mv_market.py instructor/review_providers.py instructor/review_app.py instructor/extract_provider_library.py instructor/extract_mv_adapter.py
 ```
 
 GitHub Actions runs these checks on pushes. They **do not replace** a live JSON-LD import/link/LCIA pilot against the actual licensed database.

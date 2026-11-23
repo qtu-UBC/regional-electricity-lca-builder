@@ -40,6 +40,7 @@ plant connection voltages or site-specific network characteristics.
 - In your local repository, install cloud and instructor requirements:
 
       python -m pip install -r requirements.txt -r requirements_instructor.txt
+      mkdir -p local
 
 - Confirm the exact regional process geography. In the Ontario example it
   is Canada, Ontario, not IESO Northwest. This represents an Ontario
@@ -49,11 +50,11 @@ plant connection voltages or site-specific network characteristics.
 
 Use the database label **exactly matching** your approved generator library:
 
-      python extract_mv_adapter.py \
+      python -m instructor.extract_mv_adapter \
         --region "Canada, Ontario" \
         --database-label "ecoinvent 3.12 cut-off (class shared .zolca)" \
         --reviewer "Course instructor" \
-        --out mv_adapter_REVIEW_LOCAL.json
+        --out local/mv_adapter_REVIEW_LOCAL.json
 
 The extractor retrieves three processes, their exchange amounts,
 flow/unit/property UUIDs, and default-provider UUIDs. It never downloads or

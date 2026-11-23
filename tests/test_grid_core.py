@@ -8,7 +8,7 @@ from grid_core import (
     validate_scenario, parse_mix_csv, dump_supply_mix_csv,
     scenario_documentation_report,
 )
-from openlca_bridge import plan
+from archive.legacy.openlca_bridge import plan
 
 
 BASE = {
